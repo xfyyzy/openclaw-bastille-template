@@ -178,6 +178,22 @@ Wrapper routing policy is command-aware and config-driven:
 - Wrapper applies a small built-in compatibility merge for critical local control commands, so stale persisted routing files from older jail versions do not silently regress local command routing.
 - The default policy is version-controlled at `/usr/local/share/openclaw/defaults/proxy-routing.conf` and copied to `/usr/local/etc/openclaw/proxy-routing.conf` only when missing, so manual edits survive jail rebuilds.
 
+Proxychains loopback note (important for assistant-integrated local RPC calls that may not use `/usr/local/bin/openclaw`):
+
+```conf
+# host file mounted into jail as /usr/local/etc/proxychains.conf
+# Place these lines in the global/options area, BEFORE [ProxyList].
+localnet 127.0.0.0/255.0.0.0
+localnet ::1/128
+
+[ProxyList]
+# Keep only proxy entries in this section (socks4/socks5/http),
+# do not place `localnet` here.
+# socks5 127.0.0.1 7890
+```
+
+If you update host `proxychains.conf`, restart or rebuild the jail (or at minimum restart the affected long-running assistant/gateway processes) so new processes pick up the updated rules.
+
 ## Gateway rc script in jail
 
 Template installs `/usr/local/etc/rc.d/openclaw_gateway` and sets `openclaw_gateway_enable=YES`.
