@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT=$(git rev-parse --show-toplevel)
+cd "${ROOT}"
+
+if [ ! -x "${ROOT}/scripts/security-scan.sh" ]; then
+  echo "[hook:pre-push] missing executable scan script: scripts/security-scan.sh" >&2
+  exit 2
+fi
+
+echo "[hook:pre-push] running full scan suite..."
+"${ROOT}/scripts/security-scan.sh"
+
+echo "[hook:pre-push] passed."

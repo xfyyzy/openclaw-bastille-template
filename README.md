@@ -32,6 +32,33 @@ Other lifecycle actions:
 ./openclaw-jailctl.sh --destroy
 ```
 
+## Local Leak-Prevention Hooks
+
+To block secret leaks before code leaves your machine, enable versioned hooks:
+
+```sh
+./scripts/install-git-hooks.sh
+```
+
+Hook behavior:
+
+- `pre-commit`: scans staged content snapshot with `gitleaks`, `trufflehog`, and `detect-secrets`
+- `pre-push`: runs full scan suite via `./scripts/security-scan.sh`
+
+Required local tools:
+
+- `shellcheck`
+- `gitleaks`
+- `trufflehog`
+- `detect-secrets`
+- `jq`
+
+Manual run (same checks as CI):
+
+```sh
+./scripts/security-scan.sh
+```
+
 Environment prompt for in-jail assistants:
 
 - `JAIL_ASSISTANT_ENV.md`

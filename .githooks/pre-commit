@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT=$(git rev-parse --show-toplevel)
+cd "${ROOT}"
+
+require_cmd() {
+  local cmd="$1"
+  if ! command -v "${cmd}" >/dev/null 2>&1; then
+    echo "[hook:pre-commit] missing required command: ${cmd}" >&2
+    exit 2
+  fi
+}
+
+for cmd in gitleaks trufflehog detect-secrets jq; do
+  require_cmd "${cmd}"
+done
+
+staged_files=()
+while IFS= read -r -d '' path; do
+  staged_files+=("${path}")
+done < <(git diff --cached --name-only --diff-filter=ACMR -z)
+
+if [ "${#staged_files[@]}" -eq 0 ]; then
+  exit 0
+fi
+
+tmpdir=$(mktemp -d -t openclaw-staged-scan.XXXXXX)
+report_dir="${ROOT}/reports/hook-pre-commit"
+mkdir -p "${report_dir}"
+
+cleanup() {
+  rm -rf "${tmpdir}"
+}
+trap cleanup EXIT
+
+for path in "${staged_files[@]}"; do
+  obj_type=$(git cat-file -t ":${path}" 2>/dev/null || true)
+  if [ "${obj_type}" != "blob" ]; then
+    continue
+  fi
+  mkdir -p "${tmpdir}/$(dirname "${path}")"
+  git show ":${path}" > "${tmpdir}/${path}"
+done
+
+if ! find "${tmpdir}" -type f -print -quit >/dev/null; then
+  exit 0
+fi
+
+echo "[hook:pre-commit] scanning staged snapshot for secrets..."
+
+gitleaks dir "${tmpdir}" \
+  --report-format json \
+  --report-path "${report_dir}/gitleaks.json" \
+  --exit-code 1 \
+  > "${report_dir}/gitleaks.stdout.txt" \
+  2> "${report_dir}/gitleaks.stderr.txt"
+
+trufflehog filesystem \
+  --directory "${tmpdir}" \
+  --json \
+  --no-verification \
+  --no-update \
+  --fail \
+  > "${report_dir}/trufflehog.jsonl" \
+  2> "${report_dir}/trufflehog.stderr.txt"
+
+detect-secrets scan --all-files "${tmpdir}" \
+  > "${report_dir}/detect-secrets.baseline.json" \
+  2> "${report_dir}/detect-secrets.stderr.txt"
+
+detect_results=$(jq '.results | keys | length' "${report_dir}/detect-secrets.baseline.json")
+if [ "${detect_results}" -gt 0 ]; then
+  echo "[hook:pre-commit] detect-secrets found candidates in ${detect_results} file(s)." >&2
+  echo "[hook:pre-commit] see ${report_dir}/detect-secrets.baseline.json" >&2
+  exit 1
+fi
+
+echo "[hook:pre-commit] passed."

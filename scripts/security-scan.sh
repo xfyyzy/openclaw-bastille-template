@@ -20,8 +20,26 @@ done
 
 cd "${ROOT}"
 
+snapshot_dir=$(mktemp -d -t openclaw-scan-snapshot.XXXXXX)
+cleanup() {
+  rm -rf "${snapshot_dir}"
+}
+trap cleanup EXIT
+
+while IFS= read -r -d '' path; do
+  # Scan only tracked filesystem entries present in working tree.
+  if [ ! -f "${path}" ] && [ ! -L "${path}" ]; then
+    continue
+  fi
+  mkdir -p "${snapshot_dir}/$(dirname "${path}")"
+  cp -P "${path}" "${snapshot_dir}/${path}"
+done < <(git ls-files -z)
+
 shellcheck_targets=(
+  ".githooks/pre-commit"
+  ".githooks/pre-push"
   "openclaw-jailctl.sh"
+  "scripts/install-git-hooks.sh"
   "scripts/openclaw-zfs-datasets.sh"
   "lib/config.sh"
   "usr/local/bin/openclaw"
@@ -47,7 +65,7 @@ run_scan shellcheck \
   > "${REPORT_DIR}/shellcheck.txt" 2>&1
 
 run_scan gitleaks \
-  gitleaks dir . --report-format json --report-path "${REPORT_DIR}/gitleaks.json" --exit-code 1 \
+  gitleaks dir "${snapshot_dir}" --report-format json --report-path "${REPORT_DIR}/gitleaks.json" --exit-code 1 \
   > "${REPORT_DIR}/gitleaks.stdout.txt" 2> "${REPORT_DIR}/gitleaks.stderr.txt"
 
 cat > "${REPORT_DIR}/.trufflehog-exclude" <<'EOF'
@@ -57,7 +75,7 @@ EOF
 
 run_scan trufflehog \
   trufflehog filesystem \
-  --directory . \
+  --directory "${snapshot_dir}" \
   --json \
   --no-verification \
   --no-update \
@@ -66,7 +84,7 @@ run_scan trufflehog \
   > "${REPORT_DIR}/trufflehog.jsonl" 2> "${REPORT_DIR}/trufflehog.stderr.txt"
 
 run_scan detect-secrets \
-  detect-secrets scan . \
+  detect-secrets scan --all-files "${snapshot_dir}" \
   > "${REPORT_DIR}/detect-secrets.baseline.json" 2> "${REPORT_DIR}/detect-secrets.stderr.txt"
 
 detect_results=$(jq '.results | keys | length' "${REPORT_DIR}/detect-secrets.baseline.json")
