@@ -24,6 +24,12 @@ sudo ./scripts/openclaw-zfs-datasets.sh destroy --yes
 ./openclaw-jailctl.sh --deploy
 ```
 
+Post-deploy quick check (recommended):
+
+```sh
+bastille cmd openclaw service openclaw_searxng status || bastille cmd openclaw service openclaw_searxng start
+```
+
 Other lifecycle actions:
 
 ```sh
@@ -279,7 +285,9 @@ bastille cmd openclaw service openclaw_gateway force-init
 - Template installs `www/py-searxng-devel` and enables `openclaw_searxng` rc service by default.
 - Service is configured for local-only access at `http://127.0.0.1:8888` (inside jail).
 - Startup wrapper enforces `SEARXNG_BIND_ADDRESS=127.0.0.1` and `SEARXNG_PORT=8888`.
-- `openclaw_searxng` starts automatically when the jail boots.
+- `openclaw_searxng_enable=YES` means the service auto-starts during rc boot.
+- In `--deploy` first-create flow, template application happens after jail boot, so SearXNG may not be started immediately on that first deployment.
+- After first deploy, run once: `bastille cmd openclaw service openclaw_searxng status || bastille cmd openclaw service openclaw_searxng start` (or reboot jail).
 - First deploy seeds persistent config at `/usr/local/etc/openclaw/searxng.yml` when the file is missing:
   - `use_default_settings: true`
   - `search.formats: [html, json]`
@@ -304,6 +312,12 @@ In-jail API check:
 ```sh
 bastille cmd openclaw curl -fsS 'http://127.0.0.1:8888/search?q=freebsd&format=json' | head
 ```
+
+Assistant usage priority:
+
+- Prefer the installed `searxng` skill for normal assistant retrieval flows.
+- Use `searxng_search` as fallback/debug path when skill is unavailable or raw/stable JSON structure is needed.
+- For skill-based calls, set `SEARXNG_URL=http://127.0.0.1:8888`.
 
 Proxy behavior:
 

@@ -60,13 +60,19 @@
 - 模板默认安装 `SearXNG` 并注册 rc 服务：`openclaw_searxng`。
 - 服务启动后监听 `127.0.0.1:8888`，仅供 jail 内助手本地调用。
 - 启动包装脚本会强制导出 `SEARXNG_BIND_ADDRESS=127.0.0.1` 与 `SEARXNG_PORT=8888`，避免被外部监听配置误改。
+- `openclaw_searxng_enable=YES` 表示在 rc 启动阶段自动拉起；但在 `--deploy` 首次创建场景，模板应用发生在 jail 已启动后，服务可能不会在该次首次创建中立即启动。
+- 因此首次 deploy 后建议执行一次：`service openclaw_searxng status || service openclaw_searxng start`（或重启 jail）。
 - 常用检查命令：
   - `service openclaw_searxng status`
   - `service openclaw_searxng restart`
   - `tail -f /var/db/openclaw/state/searxng.log`
 - API 连通性示例：
   - `curl -fsS 'http://127.0.0.1:8888/search?q=freebsd&format=json' | jq '.results[0:3]'`
-- 助手侧统一调用（推荐走 `exec`）：
+- 助手侧调用优先级（推荐）：
+  - 优先使用已安装的 `searxng` skill（便于统一工作流与后续扩展）。
+  - 当 skill 不可用或需要排障/稳定结构输出时，再通过 `exec` 调用 `searxng_search`。
+  - `searxng` skill 建议显式设置：`SEARXNG_URL=http://127.0.0.1:8888`。
+- `searxng_search` 常用示例（兜底/排障）：
   - `searxng_search "freebsd jail"`
   - `searxng_search --limit 5 --language zh-CN "openclaw 模板"`
   - `searxng_search --raw "freebsd"`（查看原始 SearXNG JSON）
