@@ -9,6 +9,19 @@ export OPENCLAW_CONTEXT_REPO_DIR='${OPENCLAW_CONTEXT_REPO_DIR}'
 
 use_proxy='${USE_PROXY}'
 plugin_manifest='${OPENCLAW_STATE_DIR}/plugins.txt'
+routing_config_path='${OPENCLAW_ETC_DIR}/proxy-routing.conf'
+routing_loaded='no'
+
+# Default command-level routing policy. Can be overridden by
+# /usr/local/etc/openclaw/proxy-routing.conf.
+direct_top_commands='tui gateway cron setup onboard init help --help -h version --version logs system approvals devices secrets acp'
+proxy_top_commands=''
+default_route='proxy'
+gateway_proxy_subcommands='run'
+setup_proxy_flags='--wizard --non-interactive --mode --remote-url --remote-token'
+plugins_direct_subcommands='list info enable disable uninstall remove doctor'
+plugins_proxy_subcommands='update upgrade search'
+plugins_install_path_suffixes='.ts .js .mjs .cjs .tgz .tar.gz .tar .zip'
 
 run_root='${OPENCLAW_INSTALL_ROOT}/node_modules/openclaw'
 if [ ! -f "${run_root}/openclaw.mjs" ]; then
@@ -19,11 +32,160 @@ fi
 cd "${run_root}"
 
 # Run openclaw (non-exec) so the wrapper can post-process the result.
+run_openclaw_direct() {
+  /usr/local/bin/node ./openclaw.mjs "$@"
+}
+
+run_openclaw_proxy() {
+  /usr/local/bin/proxychains -q /usr/local/bin/node ./openclaw.mjs "$@"
+}
+
+exec_openclaw_direct() {
+  exec /usr/local/bin/node ./openclaw.mjs "$@"
+}
+
+exec_openclaw_proxy() {
+  exec /usr/local/bin/proxychains -q /usr/local/bin/node ./openclaw.mjs "$@"
+}
+
+load_proxy_routing_config() {
+  [ "${routing_loaded}" = 'yes' ] && return 0
+  routing_loaded='yes'
+
+  [ -r "${routing_config_path}" ] || return 0
+
+  # shellcheck disable=SC1090
+  if ! . "${routing_config_path}"; then
+    echo "warning: failed to load routing config: ${routing_config_path}" >&2
+  fi
+}
+
+list_has_word() {
+  _list="$1"
+  _needle="$2"
+  case " ${_list} " in
+    *" ${_needle} "*) return 0 ;;
+  esac
+  return 1
+}
+
+has_any_flag() {
+  _flags="$1"
+  shift
+  for _arg in "$@"; do
+    case "${_arg}" in
+      --*=*)
+        _name="${_arg%%=*}"
+        if list_has_word "${_flags}" "${_name}"; then
+          return 0
+        fi
+        ;;
+      *)
+        if list_has_word "${_flags}" "${_arg}"; then
+          return 0
+        fi
+        ;;
+    esac
+  done
+  return 1
+}
+
+first_non_option_arg() {
+  shift 2
+  for _arg in "$@"; do
+    case "${_arg}" in
+      --)
+        return 1
+        ;;
+      -*)
+        continue
+        ;;
+      *)
+        printf '%s' "${_arg}"
+        return 0
+        ;;
+    esac
+  done
+  return 1
+}
+
+looks_like_local_plugin_spec() {
+  _spec="$1"
+  case "${_spec}" in
+    /*|./*|../*|~/*)
+      return 0
+      ;;
+  esac
+
+  for _suffix in ${plugins_install_path_suffixes}; do
+    case "${_spec}" in
+      *"${_suffix}")
+        return 0
+        ;;
+    esac
+  done
+
+  [ -e "${_spec}" ]
+}
+
+should_proxy_openclaw() {
+  top_cmd="${1:-}"
+  sub_cmd="${2:-}"
+
+  # Respect the main proxy switch first.  If proxy is globally disabled,
+  # skip all command-level routing.
+  [ "${use_proxy}" = "yes" ] || return 1
+  load_proxy_routing_config
+
+  # setup --wizard path can invoke onboarding flow that may touch the network.
+  if [ "${top_cmd}" = "setup" ] && has_any_flag "${setup_proxy_flags}" "$@"; then
+    return 0
+  fi
+
+  # gateway run may call external model providers at runtime.
+  if [ "${top_cmd}" = "gateway" ] && list_has_word "${gateway_proxy_subcommands}" "${sub_cmd}"; then
+    return 0
+  fi
+
+  if [ "${top_cmd}" = "plugins" ]; then
+    if list_has_word "${plugins_direct_subcommands}" "${sub_cmd}"; then
+      return 1
+    fi
+    if list_has_word "${plugins_proxy_subcommands}" "${sub_cmd}"; then
+      return 0
+    fi
+    case "${sub_cmd}" in
+      install|add)
+        _spec="$(first_non_option_arg "$@" || true)"
+        if [ -n "${_spec}" ] && looks_like_local_plugin_spec "${_spec}"; then
+          return 1
+        fi
+        return 0
+        ;;
+    esac
+  fi
+
+  if list_has_word "${proxy_top_commands}" "${top_cmd}"; then
+    return 0
+  fi
+  if list_has_word "${direct_top_commands}" "${top_cmd}"; then
+    return 1
+  fi
+
+  case "${default_route}" in
+    direct)
+      return 1
+      ;;
+  esac
+  # Default to proxy for runtime commands that may hit external providers.
+  return 0
+}
+
 run_openclaw() {
-  if [ "${use_proxy}" = "yes" ]; then
-    /usr/local/bin/proxychains -q /usr/local/bin/node ./openclaw.mjs "$@"
+  if should_proxy_openclaw "$@"; then
+    run_openclaw_proxy "$@"
   else
-    /usr/local/bin/node ./openclaw.mjs "$@"
+    run_openclaw_direct "$@"
   fi
 }
 
@@ -119,16 +281,8 @@ case "${1:-}" in
     ;;
 esac
 
-# Local UX commands always run without proxy.
-case "${1:-}" in
-  ""|tui)
-    exec /usr/local/bin/node ./openclaw.mjs "$@"
-    ;;
-esac
-
-# All other subcommands route through proxy when enabled.
-if [ "${use_proxy}" = "yes" ]; then
-  exec /usr/local/bin/proxychains -q /usr/local/bin/node ./openclaw.mjs "$@"
+if should_proxy_openclaw "$@"; then
+  exec_openclaw_proxy "$@"
 else
-  exec /usr/local/bin/node ./openclaw.mjs "$@"
+  exec_openclaw_direct "$@"
 fi

@@ -169,7 +169,12 @@ The template seeds `/usr/local/etc/openclaw/openclaw.json` on first install (onl
 - `agents.defaults.workspace = /var/db/openclaw/workspace`
 
 Combined with the wrapper's fixed `OPENCLAW_CONFIG_PATH` and `OPENCLAW_STATE_DIR`, a rebuilt jail continues to use the same persisted config/state/workspace mounts without relying on command-line path flags.
-Wrapper routing policy: default is `proxychains` for all subcommands. Local-only UX commands are explicitly allowlisted (`openclaw tui`, plus no-subcommand invocation) and run without proxy wrapping.
+Wrapper routing policy is command-aware and config-driven:
+
+- Main switch first: if template proxy switch is disabled (`USE_PROXY!=yes`), wrapper never uses `proxychains`.
+- When `USE_PROXY=yes`, wrapper loads persistent routing policy from `/usr/local/etc/openclaw/proxy-routing.conf`.
+- Default policy keeps local control commands direct, and routes external-facing paths (for example `gateway run`, npm plugin installs/updates) through `proxychains`.
+- The default policy is version-controlled at `/usr/local/share/openclaw/defaults/proxy-routing.conf` and copied to `/usr/local/etc/openclaw/proxy-routing.conf` only when missing, so manual edits survive jail rebuilds.
 
 ## Gateway rc script in jail
 

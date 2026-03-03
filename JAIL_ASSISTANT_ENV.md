@@ -15,6 +15,8 @@
 
 ## 3. 关键路径
 - 配置文件：`/usr/local/etc/openclaw/openclaw.json`
+- OpenClaw 代理分流策略（持久化）：`/usr/local/etc/openclaw/proxy-routing.conf`
+- OpenClaw 代理分流默认模板（仓库版本控制）：`/usr/local/share/openclaw/defaults/proxy-routing.conf`
 - 状态目录：`/var/db/openclaw/state`
 - 工作区目录：`/var/db/openclaw/workspace`
 - 持久化数据目录：`/var/db/openclaw/data`
@@ -79,7 +81,11 @@
   - `proxychains -q curl -I https://example.com`
   - `proxychains -q uv pip install <package>`
 - 纯本地操作（文件读写、本地构建、本地服务访问）不需要加 `proxychains`。
-- 该规则主要用于 shell 中直接执行的外网命令；`openclaw` 命令自身已按模板策略配置代理路由。
+- 该规则主要用于 shell 中直接执行的外网命令；`openclaw` 命令采用“按命令路由”的代理策略：
+  - 主开关优先：当模板代理开关不是 `USE_PROXY=yes` 时，`openclaw` 不会走 `proxychains`，也不会应用命令分流。
+  - 仅在 `USE_PROXY=yes` 时，`openclaw` 才会读取 `/usr/local/etc/openclaw/proxy-routing.conf` 做按命令分流。
+  - 当持久化策略文件缺失时，会从 `/usr/local/share/openclaw/defaults/proxy-routing.conf` 首次复制。
+  - 默认策略下，本地控制/UX 命令（如 `cron`、`tui`）不走代理；明确需要外网的执行路径会走代理。
 
 ## 5. Python 与 uv 约定
 - 统一入口：`python3`（对应 `python3.11`）。

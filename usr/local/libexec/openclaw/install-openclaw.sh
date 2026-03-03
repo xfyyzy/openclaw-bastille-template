@@ -6,6 +6,8 @@ install_root='${OPENCLAW_INSTALL_ROOT}'
 state_dir='${OPENCLAW_STATE_DIR}'
 workspace_dir='${OPENCLAW_WORKSPACE}'
 config_path='${OPENCLAW_ETC_DIR}/openclaw.json'
+proxy_routing_path='${OPENCLAW_ETC_DIR}/proxy-routing.conf'
+proxy_routing_default_path='/usr/local/share/openclaw/defaults/proxy-routing.conf'
 searxng_settings_path='${OPENCLAW_ETC_DIR}/searxng.yml'
 use_proxy='${USE_PROXY}'
 python_bin='${PYTHON_BIN}'
@@ -169,6 +171,15 @@ if [ ! -s "${config_path}" ]; then
   }
 }
 JSON
+fi
+
+if [ ! -s "${proxy_routing_path}" ]; then
+  if [ ! -r "${proxy_routing_default_path}" ]; then
+    echo "proxy routing template missing: ${proxy_routing_default_path}" >&2
+    exit 1
+  fi
+  install -m 0644 "${proxy_routing_default_path}" "${proxy_routing_path}"
+  chmod 0644 "${proxy_routing_path}"
 fi
 
 if [ ! -s "${searxng_settings_path}" ]; then
