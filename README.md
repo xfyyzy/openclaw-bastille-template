@@ -227,6 +227,7 @@ bastille cmd openclaw service openclaw_gateway force-init
 - First deploy seeds persistent config at `/usr/local/etc/openclaw/searxng.yml` when the file is missing:
   - `use_default_settings: true`
   - `search.formats: [html, json]`
+  - disables known-missing engines in current `py-searxng-devel` package (`wikidata`, `ahmia`, `torch`, `yacy images`) to avoid runtime `500`
   - `server.bind_address: 127.0.0.1`
   - `server.port: 8888`
   - random `server.secret_key`

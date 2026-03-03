@@ -179,6 +179,15 @@ search:
   formats:
     - html
     - json
+engines:
+  - name: wikidata
+    disabled: true
+  - name: ahmia
+    disabled: true
+  - name: torch
+    disabled: true
+  - name: yacy images
+    disabled: true
 server:
   bind_address: "127.0.0.1"
   port: 8888
