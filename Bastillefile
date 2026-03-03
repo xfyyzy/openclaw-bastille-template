@@ -41,12 +41,13 @@ MOUNT fdesc /dev/fd fdescfs rw 0 0
 CP usr /
 RENDER /usr/local/libexec/openclaw/bootstrap-pkg.sh
 RENDER /usr/local/libexec/openclaw/install-openclaw.sh
+RENDER /usr/local/libexec/openclaw/prepare-stateful-home.sh
 RENDER /usr/local/libexec/openclaw/searxng-run.sh
 RENDER /usr/local/bin/searxng_search
 RENDER /usr/local/bin/openclaw
 RENDER /usr/local/etc/rc.d/openclaw_gateway
 RENDER /usr/local/etc/rc.d/openclaw_searxng
-CMD chmod 0555 /usr/local/libexec/openclaw/bootstrap-pkg.sh /usr/local/libexec/openclaw/install-openclaw.sh /usr/local/libexec/openclaw/searxng-run.sh /usr/local/bin/searxng_search /usr/local/bin/openclaw /usr/local/etc/rc.d/openclaw_gateway /usr/local/etc/rc.d/openclaw_searxng
+CMD chmod 0555 /usr/local/libexec/openclaw/bootstrap-pkg.sh /usr/local/libexec/openclaw/install-openclaw.sh /usr/local/libexec/openclaw/prepare-stateful-home.sh /usr/local/libexec/openclaw/searxng-run.sh /usr/local/bin/searxng_search /usr/local/bin/openclaw /usr/local/etc/rc.d/openclaw_gateway /usr/local/etc/rc.d/openclaw_searxng
 CMD /usr/local/libexec/openclaw/bootstrap-pkg.sh
 CMD /usr/local/libexec/openclaw/install-openclaw.sh
 CMD sysrc openclaw_searxng_enable=YES

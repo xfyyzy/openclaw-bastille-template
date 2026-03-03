@@ -17,11 +17,16 @@
 - 配置文件：`/usr/local/etc/openclaw/openclaw.json`
 - OpenClaw 代理分流策略（持久化）：`/usr/local/etc/openclaw/proxy-routing.conf`
 - OpenClaw 代理分流默认模板（仓库版本控制）：`/usr/local/share/openclaw/defaults/proxy-routing.conf`
+- OpenClaw legacy HOME 持久化路径清单（持久化）：`/usr/local/etc/openclaw/legacy-home-paths.conf`
+- OpenClaw legacy HOME 持久化默认模板（仓库版本控制）：`/usr/local/share/openclaw/defaults/legacy-home-paths.conf`
 - 状态目录：`/var/db/openclaw/state`
 - 统一 XDG 状态根：`/var/db/openclaw/state/xdg`
   - `XDG_CONFIG_HOME=/var/db/openclaw/state/xdg/config`
   - `XDG_CACHE_HOME=/var/db/openclaw/state/xdg/cache`
   - `XDG_STATE_HOME=/var/db/openclaw/state/xdg/state`
+- 统一 legacy HOME 状态根：`/var/db/openclaw/state/home`
+  - root profile: `/var/db/openclaw/state/home/root`
+  - openclaw profile: `/var/db/openclaw/state/home/openclaw`
 - Gateway 初始化标记（持久化）：`/var/db/openclaw/state/.onboarded`
 - 工作区目录：`/var/db/openclaw/workspace`
 - 持久化数据目录：`/var/db/openclaw/data`
@@ -107,6 +112,10 @@
 - 模板为“有状态 CLI”提供统一 XDG 基线（非工具特例）：
   - `openclaw_gateway` 服务进程与 `openclaw` wrapper 统一导出 `XDG_CONFIG_HOME/XDG_CACHE_HOME/XDG_STATE_HOME` 到 `/var/db/openclaw/state/xdg/*`。
   - 对于遵循 XDG 的工具（如 `gh`），认证与配置会默认落在持久化 state 下，jail 重建后可复用。
+- 模板为“不遵循 XDG 的 HOME 路径”提供统一 legacy HOME 基线（非工具特例）：
+  - helper: `/usr/local/libexec/openclaw/prepare-stateful-home.sh`
+  - 按 `/usr/local/etc/openclaw/legacy-home-paths.conf` 声明式清单，把非 XDG 路径（如 `.ssh`、`.gnupg`、`.gitconfig`）链接到 `/var/db/openclaw/state/home/{profile}`。
+  - 默认会对 root 与 openclaw 两个 profile 应用；因此 `gh auth login` 生成的 `~/.ssh/id_ed25519` 会持久化。
 
 ## 5. Python 与 uv 约定
 - 统一入口：`python3`（对应 `python3.11`）。

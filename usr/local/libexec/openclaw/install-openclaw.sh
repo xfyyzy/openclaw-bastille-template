@@ -3,11 +3,15 @@ set -eu
 
 openclaw_npm_spec='${OPENCLAW_NPM_SPEC}'
 install_root='${OPENCLAW_INSTALL_ROOT}'
+db_dir='${OPENCLAW_DB_DIR}'
 state_dir='${OPENCLAW_STATE_DIR}'
 workspace_dir='${OPENCLAW_WORKSPACE}'
 config_path='${OPENCLAW_ETC_DIR}/openclaw.json'
 proxy_routing_path='${OPENCLAW_ETC_DIR}/proxy-routing.conf'
 proxy_routing_default_path='/usr/local/share/openclaw/defaults/proxy-routing.conf'
+legacy_home_paths_path='${OPENCLAW_ETC_DIR}/legacy-home-paths.conf'
+legacy_home_paths_default_path='/usr/local/share/openclaw/defaults/legacy-home-paths.conf'
+prepare_stateful_home='/usr/local/libexec/openclaw/prepare-stateful-home.sh'
 searxng_settings_path='${OPENCLAW_ETC_DIR}/searxng.yml'
 use_proxy='${USE_PROXY}'
 python_bin='${PYTHON_BIN}'
@@ -182,6 +186,23 @@ if [ ! -s "${proxy_routing_path}" ]; then
   install -m 0644 "${proxy_routing_default_path}" "${proxy_routing_path}"
   chmod 0644 "${proxy_routing_path}"
 fi
+
+if [ ! -s "${legacy_home_paths_path}" ]; then
+  if [ ! -r "${legacy_home_paths_default_path}" ]; then
+    echo "legacy home template missing: ${legacy_home_paths_default_path}" >&2
+    exit 1
+  fi
+  install -m 0644 "${legacy_home_paths_default_path}" "${legacy_home_paths_path}"
+  chmod 0644 "${legacy_home_paths_path}"
+fi
+
+if [ ! -x "${prepare_stateful_home}" ]; then
+  echo "stateful home helper not found: ${prepare_stateful_home}" >&2
+  exit 1
+fi
+
+OPENCLAW_STATE_DIR="${state_dir}" "${prepare_stateful_home}" /root root
+OPENCLAW_STATE_DIR="${state_dir}" "${prepare_stateful_home}" "${db_dir}" openclaw
 
 if [ ! -s "${searxng_settings_path}" ]; then
   searxng_secret="$("${python_cmd}" -c 'import secrets; print(secrets.token_hex(32))')"
