@@ -173,7 +173,8 @@ Wrapper routing policy is command-aware and config-driven:
 
 - Main switch first: if template proxy switch is disabled (`USE_PROXY!=yes`), wrapper never uses `proxychains`.
 - When `USE_PROXY=yes`, wrapper loads persistent routing policy from `/usr/local/etc/openclaw/proxy-routing.conf`.
-- Default policy keeps local control commands direct, and routes external-facing paths (for example `gateway run` / bare `gateway`, npm plugin installs/updates) through `proxychains`.
+- Default policy keeps local control commands direct (for example `gateway`/`daemon`, `status`/`health`, `config`, `cron`, `tui`) and routes external-facing paths (for example `gateway run`, remote onboarding flags, npm plugin installs/updates) through `proxychains`.
+- Wrapper applies a small built-in compatibility merge for critical local control commands, so stale persisted routing files from older jail versions do not silently regress local command routing.
 - The default policy is version-controlled at `/usr/local/share/openclaw/defaults/proxy-routing.conf` and copied to `/usr/local/etc/openclaw/proxy-routing.conf` only when missing, so manual edits survive jail rebuilds.
 
 ## Gateway rc script in jail

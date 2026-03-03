@@ -14,14 +14,18 @@ routing_loaded='no'
 
 # Default command-level routing policy. Can be overridden by
 # /usr/local/etc/openclaw/proxy-routing.conf.
-direct_top_commands='tui gateway cron setup onboard init help --help -h version --version logs system approvals devices secrets acp'
+direct_top_commands='tui gateway daemon cron setup onboard init help --help -h version --version logs system approvals devices secrets acp config status health sessions security skills completion doctor dashboard reset uninstall'
 proxy_top_commands=''
 default_route='proxy'
 gateway_proxy_subcommands='run'
 setup_proxy_flags='--wizard --non-interactive --mode --remote-url --remote-token'
+onboard_proxy_flags='--mode --remote-url --remote-token'
 plugins_direct_subcommands='list info enable disable uninstall remove doctor'
 plugins_proxy_subcommands='update upgrade search'
 plugins_install_path_suffixes='.ts .js .mjs .cjs .tgz .tar.gz .tar .zip'
+# Keep these control commands direct even when persisted routing config is old.
+# Users can still force proxy by listing a command in proxy_top_commands.
+required_direct_top_commands='daemon config status health sessions security skills completion doctor dashboard reset uninstall'
 
 run_root='${OPENCLAW_INSTALL_ROOT}/node_modules/openclaw'
 if [ ! -f "${run_root}/openclaw.mjs" ]; then
@@ -52,12 +56,14 @@ load_proxy_routing_config() {
   [ "${routing_loaded}" = 'yes' ] && return 0
   routing_loaded='yes'
 
-  [ -r "${routing_config_path}" ] || return 0
-
-  # shellcheck disable=SC1090
-  if ! . "${routing_config_path}"; then
-    echo "warning: failed to load routing config: ${routing_config_path}" >&2
+  if [ -r "${routing_config_path}" ]; then
+    # shellcheck disable=SC1090
+    if ! . "${routing_config_path}"; then
+      echo "warning: failed to load routing config: ${routing_config_path}" >&2
+    fi
   fi
+
+  normalize_proxy_routing_policy
 }
 
 list_has_word() {
@@ -67,6 +73,28 @@ list_has_word() {
     *" ${_needle} "*) return 0 ;;
   esac
   return 1
+}
+
+append_missing_words() {
+  _list="$1"
+  shift
+  for _word in "$@"; do
+    if ! list_has_word "${_list}" "${_word}"; then
+      if [ -n "${_list}" ]; then
+        _list="${_list} ${_word}"
+      else
+        _list="${_word}"
+      fi
+    fi
+  done
+  printf '%s' "${_list}"
+}
+
+normalize_proxy_routing_policy() {
+  set -f
+  # shellcheck disable=SC2086
+  direct_top_commands="$(append_missing_words "${direct_top_commands}" ${required_direct_top_commands})"
+  set +f
 }
 
 has_any_flag() {
@@ -139,6 +167,11 @@ should_proxy_openclaw() {
 
   # setup --wizard path can invoke onboarding flow that may touch the network.
   if [ "${top_cmd}" = "setup" ] && has_any_flag "${setup_proxy_flags}" "$@"; then
+    return 0
+  fi
+
+  # onboard may switch to remote mode and require external connectivity.
+  if [ "${top_cmd}" = "onboard" ] && has_any_flag "${onboard_proxy_flags}" "$@"; then
     return 0
   fi
 
