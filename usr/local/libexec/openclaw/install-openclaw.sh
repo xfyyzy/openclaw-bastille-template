@@ -175,6 +175,10 @@ if [ ! -s "${searxng_settings_path}" ]; then
   searxng_secret="$("${python_cmd}" -c 'import secrets; print(secrets.token_hex(32))')"
   cat > "${searxng_settings_path}" <<YAML
 use_default_settings: true
+search:
+  formats:
+    - html
+    - json
 server:
   bind_address: "127.0.0.1"
   port: 8888

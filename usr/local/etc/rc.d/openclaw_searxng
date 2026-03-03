@@ -14,26 +14,30 @@ rcvar="${name}_enable"
 load_rc_config "${name}"
 
 : "${openclaw_searxng_enable:=NO}"
-: "${openclaw_searxng_user:=www}"
+: "${openclaw_searxng_run_user:=${openclaw_searxng_user:-www}}"
 : "${openclaw_searxng_wrapper:=/usr/local/libexec/openclaw/searxng-run.sh}"
 : "${openclaw_searxng_log:=/var/db/openclaw/state/searxng.log}"
 : "${openclaw_searxng_pidfile:=/var/run/openclaw_searxng.pid}"
 : "${openclaw_searxng_flags:=}"
 
+# rc.subr treats ${name}_user specially and would wrap command execution with
+# su(1). Keep daemon(8) as the single privilege-drop mechanism via -u.
+unset openclaw_searxng_user
+
 required_files="${openclaw_searxng_wrapper}"
 pidfile="${openclaw_searxng_pidfile}"
 command="/usr/sbin/daemon"
 procname="daemon"
-command_args="-c -o ${openclaw_searxng_log} -P ${pidfile} -u ${openclaw_searxng_user} -- ${openclaw_searxng_wrapper} ${openclaw_searxng_flags}"
+command_args="-c -o ${openclaw_searxng_log} -P ${pidfile} -u ${openclaw_searxng_run_user} -- ${openclaw_searxng_wrapper} ${openclaw_searxng_flags}"
 start_precmd="${name}_precmd"
 
 openclaw_searxng_precmd()
 {
 	install -d -m 0755 "$(dirname "${pidfile}")"
 	install -d -m 0755 "$(dirname "${openclaw_searxng_log}")"
-	install -o "${openclaw_searxng_user}" /dev/null "${pidfile}"
+	install -o "${openclaw_searxng_run_user}" /dev/null "${pidfile}"
 	if [ ! -f "${openclaw_searxng_log}" ]; then
-		install -o "${openclaw_searxng_user}" -m 0640 /dev/null "${openclaw_searxng_log}"
+		install -o "${openclaw_searxng_run_user}" -m 0640 /dev/null "${openclaw_searxng_log}"
 	fi
 }
 
