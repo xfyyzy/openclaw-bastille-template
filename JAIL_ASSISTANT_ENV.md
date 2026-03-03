@@ -98,6 +98,7 @@
   - 仅在 `USE_PROXY=yes` 时，`openclaw` 才会读取 `/usr/local/etc/openclaw/proxy-routing.conf` 做按命令分流。
   - 当持久化策略文件缺失时，会从 `/usr/local/share/openclaw/defaults/proxy-routing.conf` 首次复制。
   - 默认策略下，本地控制/UX 命令（如 `gateway`、`daemon`、`status`、`health`、`config`、`cron`、`tui`）不走代理；明确需要外网的执行路径会走代理。
+  - 对于不走代理的 direct 路径，wrapper 会在执行前清理 `LD_PRELOAD` 与 `PROXYCHAINS_*`，避免父进程 proxychains 注入影响本地 loopback Gateway/RPC 通信。
   - `onboard` 在使用远程相关参数（如 `--mode` / `--remote-url` / `--remote-token`）时会走代理。
 
 ## 5. Python 与 uv 约定

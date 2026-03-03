@@ -35,8 +35,18 @@ fi
 
 cd "${run_root}"
 
+clear_proxy_preload_env() {
+  # Direct paths talk to local services and must not inherit proxychains
+  # preload injection from parent shells.
+  unset LD_PRELOAD
+  for _env_name in $(env | awk -F= '/^PROXYCHAINS_/ { print $1 }'); do
+    unset "${_env_name}"
+  done
+}
+
 # Run openclaw (non-exec) so the wrapper can post-process the result.
 run_openclaw_direct() {
+  clear_proxy_preload_env
   /usr/local/bin/node ./openclaw.mjs "$@"
 }
 
@@ -45,6 +55,7 @@ run_openclaw_proxy() {
 }
 
 exec_openclaw_direct() {
+  clear_proxy_preload_env
   exec /usr/local/bin/node ./openclaw.mjs "$@"
 }
 
