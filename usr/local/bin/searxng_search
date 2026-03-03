@@ -1,0 +1,368 @@
+#!/bin/sh
+set -eu
+
+usage() {
+  cat <<'EOF'
+Usage: searxng_search [options] <query>
+
+Query local SearXNG and print a stable JSON structure for assistant exec usage.
+
+Options:
+  -q, --query <text>         Query text (can also be provided as positional args)
+  --limit <n>                Max normalized results to return (default: 10)
+  --page <n>                 SearXNG page number (default: 1)
+  --safe-search <0|1|2>      SearXNG safesearch level (default: 0)
+  --language <code>          Optional language parameter (for example: en, zh-CN)
+  --categories <list>        Optional comma-separated categories
+  --engines <list>           Optional comma-separated engines
+  --time-range <value>       Optional time_range (day, month, year)
+  --timeout <seconds>        HTTP timeout in seconds (default: 20)
+  --base-url <url>           Base URL (default: http://127.0.0.1:8888)
+  --raw                      Print raw SearXNG JSON response
+  -h, --help                 Show help
+
+Environment overrides:
+  SEARXNG_SEARCH_BASE_URL
+  SEARXNG_SEARCH_TIMEOUT_SECONDS
+  SEARXNG_SEARCH_LIMIT
+  SEARXNG_SEARCH_PAGE
+  SEARXNG_SEARCH_SAFE_SEARCH
+EOF
+}
+
+is_non_negative_int() {
+  case "${1}" in
+    ''|*[!0-9]*)
+      return 1
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+}
+
+is_positive_int() {
+  is_non_negative_int "${1}" && [ "${1}" -gt 0 ]
+}
+
+append_query_token() {
+  token="${1}"
+  if [ -z "${query}" ]; then
+    query="${token}"
+  else
+    query="${query} ${token}"
+  fi
+}
+
+base_url="${SEARXNG_SEARCH_BASE_URL:-http://127.0.0.1:8888}"
+timeout_seconds="${SEARXNG_SEARCH_TIMEOUT_SECONDS:-20}"
+limit="${SEARXNG_SEARCH_LIMIT:-10}"
+page="${SEARXNG_SEARCH_PAGE:-1}"
+safe_search="${SEARXNG_SEARCH_SAFE_SEARCH:-0}"
+language=''
+categories=''
+engines=''
+time_range=''
+raw_mode='no'
+query=''
+
+while [ $# -gt 0 ]; do
+  case "${1}" in
+    -q|--query)
+      if [ $# -lt 2 ]; then
+        echo "missing value for ${1}" >&2
+        usage >&2
+        exit 2
+      fi
+      query="${2}"
+      shift 2
+      ;;
+    --limit)
+      if [ $# -lt 2 ]; then
+        echo "missing value for ${1}" >&2
+        usage >&2
+        exit 2
+      fi
+      limit="${2}"
+      shift 2
+      ;;
+    --page)
+      if [ $# -lt 2 ]; then
+        echo "missing value for ${1}" >&2
+        usage >&2
+        exit 2
+      fi
+      page="${2}"
+      shift 2
+      ;;
+    --safe-search)
+      if [ $# -lt 2 ]; then
+        echo "missing value for ${1}" >&2
+        usage >&2
+        exit 2
+      fi
+      safe_search="${2}"
+      shift 2
+      ;;
+    --language|--lang)
+      if [ $# -lt 2 ]; then
+        echo "missing value for ${1}" >&2
+        usage >&2
+        exit 2
+      fi
+      language="${2}"
+      shift 2
+      ;;
+    --categories)
+      if [ $# -lt 2 ]; then
+        echo "missing value for ${1}" >&2
+        usage >&2
+        exit 2
+      fi
+      categories="${2}"
+      shift 2
+      ;;
+    --engines)
+      if [ $# -lt 2 ]; then
+        echo "missing value for ${1}" >&2
+        usage >&2
+        exit 2
+      fi
+      engines="${2}"
+      shift 2
+      ;;
+    --time-range)
+      if [ $# -lt 2 ]; then
+        echo "missing value for ${1}" >&2
+        usage >&2
+        exit 2
+      fi
+      time_range="${2}"
+      shift 2
+      ;;
+    --timeout)
+      if [ $# -lt 2 ]; then
+        echo "missing value for ${1}" >&2
+        usage >&2
+        exit 2
+      fi
+      timeout_seconds="${2}"
+      shift 2
+      ;;
+    --base-url)
+      if [ $# -lt 2 ]; then
+        echo "missing value for ${1}" >&2
+        usage >&2
+        exit 2
+      fi
+      base_url="${2}"
+      shift 2
+      ;;
+    --raw)
+      raw_mode='yes'
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "unknown option: ${1}" >&2
+      usage >&2
+      exit 2
+      ;;
+    *)
+      append_query_token "${1}"
+      shift
+      ;;
+  esac
+done
+
+while [ $# -gt 0 ]; do
+  append_query_token "${1}"
+  shift
+done
+
+if [ -z "${query}" ]; then
+  echo "query is required" >&2
+  usage >&2
+  exit 2
+fi
+
+if ! is_positive_int "${limit}"; then
+  echo "limit must be a positive integer: ${limit}" >&2
+  exit 2
+fi
+
+if ! is_positive_int "${page}"; then
+  echo "page must be a positive integer: ${page}" >&2
+  exit 2
+fi
+
+if ! is_positive_int "${timeout_seconds}"; then
+  echo "timeout must be a positive integer: ${timeout_seconds}" >&2
+  exit 2
+fi
+
+if ! is_non_negative_int "${safe_search}" || [ "${safe_search}" -gt 2 ]; then
+  echo "safe-search must be 0, 1, or 2: ${safe_search}" >&2
+  exit 2
+fi
+
+tmp_response=$(mktemp -t searxng_search.response.XXXXXX)
+tmp_error=$(mktemp -t searxng_search.error.XXXXXX)
+cleanup() {
+  rm -f "${tmp_response}" "${tmp_error}"
+}
+trap cleanup EXIT INT TERM
+
+search_url="${base_url%/}/search"
+
+set -- \
+  --data-urlencode "q=${query}" \
+  --data-urlencode "format=json" \
+  --data-urlencode "pageno=${page}" \
+  --data-urlencode "safesearch=${safe_search}"
+
+if [ -n "${language}" ]; then
+  set -- "$@" --data-urlencode "language=${language}"
+fi
+if [ -n "${categories}" ]; then
+  set -- "$@" --data-urlencode "categories=${categories}"
+fi
+if [ -n "${engines}" ]; then
+  set -- "$@" --data-urlencode "engines=${engines}"
+fi
+if [ -n "${time_range}" ]; then
+  set -- "$@" --data-urlencode "time_range=${time_range}"
+fi
+
+if ! curl -fsS --max-time "${timeout_seconds}" --get "${search_url}" "$@" >"${tmp_response}" 2>"${tmp_error}"; then
+  python3 - "${tmp_error}" <<'PY'
+import json
+import pathlib
+import sys
+
+error_path = pathlib.Path(sys.argv[1])
+message = error_path.read_text(encoding="utf-8", errors="replace").strip() or "searxng request failed"
+print(
+    json.dumps(
+        {
+            "schema_version": 1,
+            "ok": False,
+            "error": "request_failed",
+            "message": message,
+        },
+        ensure_ascii=False,
+    )
+)
+PY
+  exit 1
+fi
+
+if [ "${raw_mode}" = "yes" ]; then
+  cat "${tmp_response}"
+  exit 0
+fi
+
+python3 - "${tmp_response}" "${query}" "${limit}" "${page}" "${base_url}" <<'PY'
+import json
+import pathlib
+import sys
+
+response_path = pathlib.Path(sys.argv[1])
+query = sys.argv[2]
+limit = int(sys.argv[3])
+page = int(sys.argv[4])
+base_url = sys.argv[5]
+
+
+def str_or_empty(value):
+    return value if isinstance(value, str) else ""
+
+
+def normalize_result(item, rank):
+    if not isinstance(item, dict):
+        return None
+    score = item.get("score")
+    if not isinstance(score, (int, float)):
+        score = None
+    return {
+        "rank": rank,
+        "title": str_or_empty(item.get("title")),
+        "url": str_or_empty(item.get("url")),
+        "snippet": str_or_empty(item.get("content")),
+        "engine": str_or_empty(item.get("engine")),
+        "category": str_or_empty(item.get("category")),
+        "published_date": str_or_empty(item.get("publishedDate") or item.get("published")),
+        "score": score,
+    }
+
+
+try:
+    data = json.loads(response_path.read_text(encoding="utf-8"))
+except Exception as exc:
+    print(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "ok": False,
+                "error": "invalid_json",
+                "message": str(exc),
+            },
+            ensure_ascii=False,
+        )
+    )
+    raise SystemExit(1)
+
+raw_results = data.get("results")
+if not isinstance(raw_results, list):
+    raw_results = []
+
+normalized_all = []
+for idx, item in enumerate(raw_results, start=1):
+    normalized = normalize_result(item, idx)
+    if normalized is not None:
+        normalized_all.append(normalized)
+
+normalized_limited = normalized_all[:limit]
+number_of_results_reported = data.get("number_of_results")
+if not isinstance(number_of_results_reported, int):
+    number_of_results_reported = 0
+
+suggestions = data.get("suggestions")
+if not isinstance(suggestions, list):
+    suggestions = []
+suggestions = [item for item in suggestions if isinstance(item, str)]
+
+answers = data.get("answers")
+if not isinstance(answers, list):
+    answers = []
+
+unresponsive_engines = data.get("unresponsive_engines")
+if not isinstance(unresponsive_engines, list):
+    unresponsive_engines = []
+
+payload = {
+    "schema_version": 1,
+    "ok": True,
+    "source": "searxng",
+    "base_url": base_url,
+    "query": query,
+    "page": page,
+    "limit_applied": limit,
+    "raw_results_count": len(normalized_all),
+    "results_count": len(normalized_limited),
+    "number_of_results_reported": number_of_results_reported,
+    "results": normalized_limited,
+    "suggestions": suggestions,
+    "answers": answers,
+    "unresponsive_engines": unresponsive_engines,
+}
+
+print(json.dumps(payload, ensure_ascii=False, indent=2))
+PY

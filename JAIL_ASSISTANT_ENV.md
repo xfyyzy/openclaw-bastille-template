@@ -54,6 +54,18 @@
   - `tail -f /var/db/openclaw/state/searxng.log`
 - API 连通性示例：
   - `curl -fsS 'http://127.0.0.1:8888/search?q=freebsd&format=json' | jq '.results[0:3]'`
+- 助手侧统一调用（推荐走 `exec`）：
+  - `searxng_search "freebsd jail"`
+  - `searxng_search --limit 5 --language zh-CN "openclaw 模板"`
+  - `searxng_search --raw "freebsd"`（查看原始 SearXNG JSON）
+- `searxng_search` 输出字段（稳定结构）：
+  - `schema_version`, `ok`, `source`, `base_url`, `query`, `page`
+  - `limit_applied`, `raw_results_count`, `results_count`, `number_of_results_reported`
+  - `results[]`（统一字段：`rank`, `title`, `url`, `snippet`, `engine`, `category`, `published_date`, `score`）
+  - `suggestions`, `answers`, `unresponsive_engines`
+- 计数字段说明：
+  - `results_count` 表示当前返回并标准化后的结果条数（助手应优先使用该字段）。
+  - `number_of_results_reported` 来自上游聚合统计，可能为 `0` 但 `results_count > 0`，这不代表检索失败。
 - 代理行为：
   - 当模板启用 `USE_PROXY=yes` 时，`openclaw_searxng` 会通过 `proxychains` 启动，SearXNG 对外检索流量自动走代理。
   - 访问 `127.0.0.1:8888` 这种 jail 内本地请求不需要额外加 `proxychains`。

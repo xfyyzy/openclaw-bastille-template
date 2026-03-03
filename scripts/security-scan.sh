@@ -43,6 +43,7 @@ shellcheck_targets=(
   "scripts/openclaw-zfs-datasets.sh"
   "lib/config.sh"
   "usr/local/bin/openclaw"
+  "usr/local/bin/searxng_search"
   "usr/local/etc/rc.d/openclaw_gateway"
   "usr/local/etc/rc.d/openclaw_searxng"
   "usr/local/libexec/openclaw/bootstrap-pkg.sh"
