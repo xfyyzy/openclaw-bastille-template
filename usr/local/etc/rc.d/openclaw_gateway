@@ -24,6 +24,7 @@ load_rc_config "${name}"
 : "${openclaw_gateway_workspace:=/var/db/openclaw/workspace}"
 : "${openclaw_gateway_init_flags:=onboard --flow manual --mode local --no-install-daemon}"
 : "${openclaw_gateway_init_marker:=/var/db/openclaw/state/.onboarded}"
+: "${openclaw_gateway_autostart_if_initialized:=YES}"
 : "${openclaw_gateway_pidfile:=/var/run/openclaw/openclaw_gateway.pid}"
 : "${openclaw_gateway_log:=/var/log/openclaw_gateway.log}"
 
@@ -34,10 +35,10 @@ pidfile="${openclaw_gateway_pidfile}"
 child_pidfile="${openclaw_gateway_child_pidfile}"
 command="/usr/sbin/daemon"
 command_args="-f -P ${pidfile} -p ${child_pidfile} -o ${openclaw_gateway_log} -u ${openclaw_gateway_user} -- ${openclaw_gateway_cmd} ${openclaw_gateway_cmd_flags}"
-start_precmd="${name}_prestart"
 extra_commands="init check"
 init_cmd="${name}_init"
 check_cmd="${name}_check"
+start_cmd="${name}_start"
 stop_cmd="${name}_stop"
 
 openclaw_gateway_pid_from_file()
@@ -204,6 +205,41 @@ openclaw_gateway_prestart()
 	fi
 }
 
+openclaw_gateway_should_start()
+{
+	if ! checkyesno openclaw_gateway_autostart_if_initialized; then
+		return 0
+	fi
+
+	if [ -f "${openclaw_gateway_init_marker}" ]; then
+		return 0
+	fi
+
+	echo "Init marker missing at ${openclaw_gateway_init_marker}; skipping ${name} start."
+	echo "Run 'service ${name} init' to complete onboarding first."
+	return 1
+}
+
+openclaw_gateway_start()
+{
+	start_cmdline=''
+
+	if ! openclaw_gateway_should_start; then
+		return 0
+	fi
+
+	openclaw_gateway_prestart || return 1
+
+	start_cmdline="${command}"
+	if [ -n "${openclaw_gateway_flags}" ]; then
+		start_cmdline="${start_cmdline} ${openclaw_gateway_flags}"
+	fi
+	start_cmdline="${start_cmdline} ${command_args}"
+
+	# Preserve rc.conf-style daemon flags in a single command line.
+	eval "${start_cmdline}"
+}
+
 openclaw_gateway_run_as_user()
 {
 	if [ "${openclaw_gateway_user}" = "root" ]; then
@@ -277,6 +313,7 @@ openclaw_gateway_check()
 	echo "openclaw_gateway_config=${openclaw_gateway_config}"
 	echo "openclaw_gateway_workspace=${openclaw_gateway_workspace}"
 	echo "openclaw_gateway_init_marker=${openclaw_gateway_init_marker}"
+	echo "openclaw_gateway_autostart_if_initialized=${openclaw_gateway_autostart_if_initialized}"
 	echo "openclaw_gateway_init_flags=${openclaw_gateway_init_flags}"
 	"${openclaw_gateway_cmd}" --version
 }

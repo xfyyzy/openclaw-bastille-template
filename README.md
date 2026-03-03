@@ -173,13 +173,18 @@ Wrapper routing policy is command-aware and config-driven:
 
 - Main switch first: if template proxy switch is disabled (`USE_PROXY!=yes`), wrapper never uses `proxychains`.
 - When `USE_PROXY=yes`, wrapper loads persistent routing policy from `/usr/local/etc/openclaw/proxy-routing.conf`.
-- Default policy keeps local control commands direct, and routes external-facing paths (for example `gateway run`, npm plugin installs/updates) through `proxychains`.
+- Default policy keeps local control commands direct, and routes external-facing paths (for example `gateway run` / bare `gateway`, npm plugin installs/updates) through `proxychains`.
 - The default policy is version-controlled at `/usr/local/share/openclaw/defaults/proxy-routing.conf` and copied to `/usr/local/etc/openclaw/proxy-routing.conf` only when missing, so manual edits survive jail rebuilds.
 
 ## Gateway rc script in jail
 
 Template installs `/usr/local/etc/rc.d/openclaw_gateway` and sets `openclaw_gateway_enable=YES`.
-Gateway stop now uses a bounded shutdown path: send `TERM`, wait up to `openclaw_gateway_stop_timeout`,
+Gateway start is guarded by init marker by default (`openclaw_gateway_autostart_if_initialized=YES`):
+
+- if `${openclaw_gateway_init_marker}` exists (default `/var/db/openclaw/state/.onboarded`), service starts automatically on jail boot;
+- if marker is missing, start is skipped with guidance to run `service openclaw_gateway init`.
+
+Gateway stop uses a bounded shutdown path: send `TERM`, wait up to `openclaw_gateway_stop_timeout`,
 then escalate to `KILL` for supervisor and descendant processes. This prevents indefinite jail stop hangs.
 
 Common lifecycle commands:
@@ -210,6 +215,7 @@ bastille cmd openclaw sysrc openclaw_gateway_child_pidfile='/var/run/openclaw/op
 bastille cmd openclaw sysrc openclaw_gateway_config='/usr/local/etc/openclaw/openclaw.json'
 bastille cmd openclaw sysrc openclaw_gateway_workspace='/var/db/openclaw/workspace'
 bastille cmd openclaw sysrc openclaw_gateway_init_marker='/var/db/openclaw/state/.onboarded'
+bastille cmd openclaw sysrc openclaw_gateway_autostart_if_initialized=YES
 bastille cmd openclaw sysrc openclaw_gateway_init_flags='onboard --flow manual --mode local --no-install-daemon'
 bastille cmd openclaw sysrc openclaw_gateway_stop_timeout='20'
 bastille cmd openclaw sysrc openclaw_gateway_stop_grace='3'

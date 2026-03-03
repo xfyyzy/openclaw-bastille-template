@@ -142,9 +142,16 @@ should_proxy_openclaw() {
     return 0
   fi
 
-  # gateway run may call external model providers at runtime.
-  if [ "${top_cmd}" = "gateway" ] && list_has_word "${gateway_proxy_subcommands}" "${sub_cmd}"; then
-    return 0
+  # gateway runtime may call external model providers.
+  # `openclaw gateway` (without subcommand) behaves like `openclaw gateway run`.
+  if [ "${top_cmd}" = "gateway" ]; then
+    _gateway_sub="${sub_cmd}"
+    if [ -z "${_gateway_sub}" ]; then
+      _gateway_sub='run'
+    fi
+    if list_has_word "${gateway_proxy_subcommands}" "${_gateway_sub}"; then
+      return 0
+    fi
   fi
 
   if [ "${top_cmd}" = "plugins" ]; then

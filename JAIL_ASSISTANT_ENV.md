@@ -18,6 +18,7 @@
 - OpenClaw 代理分流策略（持久化）：`/usr/local/etc/openclaw/proxy-routing.conf`
 - OpenClaw 代理分流默认模板（仓库版本控制）：`/usr/local/share/openclaw/defaults/proxy-routing.conf`
 - 状态目录：`/var/db/openclaw/state`
+- Gateway 初始化标记（持久化）：`/var/db/openclaw/state/.onboarded`
 - 工作区目录：`/var/db/openclaw/workspace`
 - 持久化数据目录：`/var/db/openclaw/data`
 - SearXNG 配置（持久化）：`/usr/local/etc/openclaw/searxng.yml`
@@ -71,6 +72,17 @@
 - 代理行为：
   - 当模板启用 `USE_PROXY=yes` 时，`openclaw_searxng` 会通过 `proxychains` 启动，SearXNG 对外检索流量自动走代理。
   - 访问 `127.0.0.1:8888` 这种 jail 内本地请求不需要额外加 `proxychains`。
+
+## 3.4 Gateway（OpenClaw 主服务）
+- rc 服务名：`openclaw_gateway`
+- 默认行为：`openclaw_gateway_enable=YES`，且仅在初始化标记存在时自动启动。
+  - 存在 `/var/db/openclaw/state/.onboarded`：jail 启动时自动拉起 Gateway
+  - 缺失标记：跳过启动，并提示先执行 `service openclaw_gateway init`
+- 常用命令：
+  - `service openclaw_gateway status`
+  - `service openclaw_gateway init`
+  - `service openclaw_gateway force-init`
+  - `service openclaw_gateway restart`
 
 ## 4. 网络访问约束
 - 宿主机位于 China，默认无法直接访问国际互联网（或可达性不稳定）。
