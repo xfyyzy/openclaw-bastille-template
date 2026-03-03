@@ -66,7 +66,7 @@ run_scan trufflehog \
   > "${REPORT_DIR}/trufflehog.jsonl" 2> "${REPORT_DIR}/trufflehog.stderr.txt"
 
 run_scan detect-secrets \
-  detect-secrets scan --all-files \
+  detect-secrets scan . \
   > "${REPORT_DIR}/detect-secrets.baseline.json" 2> "${REPORT_DIR}/detect-secrets.stderr.txt"
 
 detect_results=$(jq '.results | keys | length' "${REPORT_DIR}/detect-secrets.baseline.json")
