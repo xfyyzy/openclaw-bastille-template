@@ -1,0 +1,15 @@
+.idea/
+.vscode/
+
+.DS_Store
+Thumbs.db
+
+*.swp
+*.swo
+*~
+
+.env
+.env.*
+
+openclaw.conf
+reports/

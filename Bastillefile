@@ -1,0 +1,52 @@
+ARG+ OPENCLAW_CONFIG_HOST
+ARG+ OPENCLAW_STATE_HOST
+ARG+ OPENCLAW_WORKSPACE_HOST
+ARG+ OPENCLAW_DATA_HOST
+ARG PKG_SOURCE=local
+ARG USE_PROXY=yes
+ARG LOCAL_PKG_REPO=/usr/local/poudriere/data/packages/150amd64-2026Q1
+ARG PKG_MIRROR_URL=
+ARG PROXYCHAINS_CONF_HOST=/usr/local/etc/proxychains.conf
+ARG OPENCLAW_NPM_SPEC=openclaw@latest
+ARG OPENCLAW_ETC_DIR=/usr/local/etc/openclaw
+ARG OPENCLAW_DB_DIR=/var/db/openclaw
+ARG OPENCLAW_STATE_DIR=/var/db/openclaw/state
+ARG OPENCLAW_WORKSPACE=/var/db/openclaw/workspace
+ARG OPENCLAW_DATA_DIR=/var/db/openclaw/data
+ARG OPENCLAW_INSTALL_ROOT=/usr/local/libexec/openclaw/current
+ARG OPENCLAW_CONTEXT_SNAPSHOT_DIR=/usr/local/share/openclaw/context/template-snapshot
+ARG OPENCLAW_CONTEXT_REPO_DIR=/usr/local/share/openclaw/context/repo-live
+ARG OPENCLAW_CONTEXT_LIVE_MOUNT_ENABLE=no
+ARG OPENCLAW_CONTEXT_REPO_HOST=
+ARG PYTHON_BIN=python3.11
+ARG+ LOCAL_BOOTSTRAP_ORIGINS
+ARG+ LOCAL_BUILD_ORIGINS
+
+CMD mkdir -p /mnt/poudriere /proc /dev/fd ${OPENCLAW_ETC_DIR} ${OPENCLAW_DB_DIR} ${OPENCLAW_STATE_DIR} ${OPENCLAW_WORKSPACE} ${OPENCLAW_DATA_DIR} ${OPENCLAW_INSTALL_ROOT} ${OPENCLAW_CONTEXT_SNAPSHOT_DIR} ${OPENCLAW_CONTEXT_REPO_DIR}
+# @if-local-pkg
+MOUNT ${LOCAL_PKG_REPO} /mnt/poudriere nullfs ro 0 0
+# @endif-local-pkg
+MOUNT ${OPENCLAW_CONFIG_HOST} ${OPENCLAW_ETC_DIR} nullfs rw 0 0
+MOUNT ${OPENCLAW_STATE_HOST} ${OPENCLAW_STATE_DIR} nullfs rw 0 0
+MOUNT ${OPENCLAW_WORKSPACE_HOST} ${OPENCLAW_WORKSPACE} nullfs rw 0 0
+MOUNT ${OPENCLAW_DATA_HOST} ${OPENCLAW_DATA_DIR} nullfs rw 0 0
+# @if-context-live
+MOUNT ${OPENCLAW_CONTEXT_REPO_HOST} ${OPENCLAW_CONTEXT_REPO_DIR} nullfs ro 0 0
+# @endif-context-live
+# @if-proxy
+MOUNT ${PROXYCHAINS_CONF_HOST} /usr/local/etc/proxychains.conf nullfs ro 0 0
+# @endif-proxy
+MOUNT proc /proc procfs rw 0 0
+MOUNT fdesc /dev/fd fdescfs rw 0 0
+CP usr /
+RENDER /usr/local/libexec/openclaw/bootstrap-pkg.sh
+RENDER /usr/local/libexec/openclaw/install-openclaw.sh
+RENDER /usr/local/libexec/openclaw/searxng-run.sh
+RENDER /usr/local/bin/openclaw
+RENDER /usr/local/etc/rc.d/openclaw_gateway
+RENDER /usr/local/etc/rc.d/openclaw_searxng
+CMD chmod 0555 /usr/local/libexec/openclaw/bootstrap-pkg.sh /usr/local/libexec/openclaw/install-openclaw.sh /usr/local/libexec/openclaw/searxng-run.sh /usr/local/bin/openclaw /usr/local/etc/rc.d/openclaw_gateway /usr/local/etc/rc.d/openclaw_searxng
+CMD /usr/local/libexec/openclaw/bootstrap-pkg.sh
+CMD /usr/local/libexec/openclaw/install-openclaw.sh
+CMD sysrc openclaw_searxng_enable=YES
+CMD sysrc openclaw_gateway_enable=YES

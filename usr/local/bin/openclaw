@@ -1,0 +1,134 @@
+#!/bin/sh
+set -eu
+export HOME='${OPENCLAW_DB_DIR}'
+export OPENCLAW_HOME='${OPENCLAW_DB_DIR}'
+export OPENCLAW_STATE_DIR='${OPENCLAW_STATE_DIR}'
+export OPENCLAW_CONFIG_PATH='${OPENCLAW_ETC_DIR}/openclaw.json'
+export OPENCLAW_CONTEXT_SNAPSHOT_DIR='${OPENCLAW_CONTEXT_SNAPSHOT_DIR}'
+export OPENCLAW_CONTEXT_REPO_DIR='${OPENCLAW_CONTEXT_REPO_DIR}'
+
+use_proxy='${USE_PROXY}'
+plugin_manifest='${OPENCLAW_STATE_DIR}/plugins.txt'
+
+run_root='${OPENCLAW_INSTALL_ROOT}/node_modules/openclaw'
+if [ ! -f "${run_root}/openclaw.mjs" ]; then
+  echo "openclaw entrypoint not found: ${run_root}/openclaw.mjs" >&2
+  exit 1
+fi
+
+cd "${run_root}"
+
+# Run openclaw (non-exec) so the wrapper can post-process the result.
+run_openclaw() {
+  if [ "${use_proxy}" = "yes" ]; then
+    /usr/local/bin/proxychains -q /usr/local/bin/node ./openclaw.mjs "$@"
+  else
+    /usr/local/bin/node ./openclaw.mjs "$@"
+  fi
+}
+
+# Extract package name from an npm spec, stripping any version suffix.
+# Examples: @scope/pkg@1.0 -> @scope/pkg, pkg@^2 -> pkg, pkg -> pkg
+pkg_name() {
+  _input="$1"
+  case "${_input}" in
+    @*)
+      # Scoped: @scope/pkg or @scope/pkg@version
+      # Strip version after the second @ (if present)
+      _without_scope="${_input#*/*}"
+      if [ "${_without_scope}" != "${_input}" ]; then
+        # Has slash — extract @scope/name by stripping @version from the name part
+        _scope="${_input%%/*}"
+        _name_ver="${_input#*/}"
+        _name="${_name_ver%%@*}"
+        printf '%s/%s' "${_scope}" "${_name}"
+      else
+        printf '%s' "${_input}"
+      fi
+      ;;
+    *)
+      # Unscoped: pkg or pkg@version
+      printf '%s' "${_input%%@*}"
+      ;;
+  esac
+}
+
+# Add a spec to the manifest, replacing any existing entry for the same package.
+manifest_add() {
+  _spec="$1"
+  _pkg=$(pkg_name "${_spec}")
+  # Remove any existing entry for this package name, then append new spec.
+  if [ -f "${plugin_manifest}" ]; then
+    _tmp=$(mktemp -t openclaw-manifest.XXXXXX)
+    while IFS= read -r _line || [ -n "${_line}" ]; do
+      _existing_pkg=$(pkg_name "${_line}")
+      [ "${_existing_pkg}" = "${_pkg}" ] || printf '%s\n' "${_line}"
+    done < "${plugin_manifest}" > "${_tmp}"
+    mv "${_tmp}" "${plugin_manifest}"
+  fi
+  printf '%s\n' "${_spec}" >> "${plugin_manifest}"
+}
+
+# Remove all entries matching a package name from the manifest.
+manifest_remove() {
+  _spec="$1"
+  _pkg=$(pkg_name "${_spec}")
+  [ -f "${plugin_manifest}" ] || return 0
+  _tmp=$(mktemp -t openclaw-manifest.XXXXXX)
+  while IFS= read -r _line || [ -n "${_line}" ]; do
+    _existing_pkg=$(pkg_name "${_line}")
+    [ "${_existing_pkg}" = "${_pkg}" ] || printf '%s\n' "${_line}"
+  done < "${plugin_manifest}" > "${_tmp}"
+  mv "${_tmp}" "${plugin_manifest}"
+}
+
+# --- Plugin manifest hooks ---
+# Intercept plugins install/uninstall to keep a persistent manifest.
+# On jail rebuild, install-openclaw.sh reads this manifest to restore plugins.
+
+case "${1:-}" in
+  plugins)
+    case "${2:-}" in
+      install)
+        run_openclaw "$@"
+        _rc=$?
+        if [ "${_rc}" -eq 0 ]; then
+          shift 2
+          for _spec in "$@"; do
+            case "${_spec}" in -*) continue ;; esac
+            manifest_add "${_spec}"
+            echo "plugin manifest: added ${_spec}"
+          done
+        fi
+        exit "${_rc}"
+        ;;
+      uninstall|remove)
+        run_openclaw "$@"
+        _rc=$?
+        if [ "${_rc}" -eq 0 ]; then
+          shift 2
+          for _spec in "$@"; do
+            case "${_spec}" in -*) continue ;; esac
+            manifest_remove "${_spec}"
+            echo "plugin manifest: removed ${_spec}"
+          done
+        fi
+        exit "${_rc}"
+        ;;
+    esac
+    ;;
+esac
+
+# Local UX commands always run without proxy.
+case "${1:-}" in
+  ""|tui)
+    exec /usr/local/bin/node ./openclaw.mjs "$@"
+    ;;
+esac
+
+# All other subcommands route through proxy when enabled.
+if [ "${use_proxy}" = "yes" ]; then
+  exec /usr/local/bin/proxychains -q /usr/local/bin/node ./openclaw.mjs "$@"
+else
+  exec /usr/local/bin/node ./openclaw.mjs "$@"
+fi

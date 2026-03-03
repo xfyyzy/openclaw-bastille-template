@@ -1,0 +1,50 @@
+name: Quality Gate
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Base Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck jq python3 python3-pip curl tar
+
+      - name: Install Gitleaks
+        run: |
+          GITLEAKS_VERSION="8.30.0"
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -o /tmp/gitleaks.tgz
+          tar -xzf /tmp/gitleaks.tgz -C /tmp
+          sudo install /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Install TruffleHog
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sudo sh -s -- -b /usr/local/bin
+          trufflehog --version
+
+      - name: Install detect-secrets
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install detect-secrets
+          detect-secrets --version
+
+      - name: Run Scan Suite
+        run: scripts/security-scan.sh
+
+      - name: Upload Scan Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-gate-reports
+          path: reports/

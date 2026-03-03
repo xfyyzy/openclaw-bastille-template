@@ -1,0 +1,289 @@
+#!/bin/sh
+#
+# PROVIDE: openclaw_gateway
+# REQUIRE: LOGIN
+# KEYWORD: shutdown
+#
+
+. /etc/rc.subr
+
+name="openclaw_gateway"
+rcvar="${name}_enable"
+
+load_rc_config "${name}"
+
+: "${openclaw_gateway_enable:=NO}"
+: "${openclaw_gateway_user:=root}"
+: "${openclaw_gateway_cmd:=/usr/local/bin/openclaw}"
+: "${openclaw_gateway_cmd_flags:=gateway}"
+: "${openclaw_gateway_daemon_flags:=}"
+: "${openclaw_gateway_stop_timeout:=20}"
+: "${openclaw_gateway_stop_grace:=3}"
+: "${openclaw_gateway_child_pidfile:=/var/run/openclaw/openclaw_gateway.child.pid}"
+: "${openclaw_gateway_config:=/usr/local/etc/openclaw/openclaw.json}"
+: "${openclaw_gateway_workspace:=/var/db/openclaw/workspace}"
+: "${openclaw_gateway_init_flags:=onboard --flow manual --mode local --no-install-daemon}"
+: "${openclaw_gateway_init_marker:=/var/db/openclaw/state/.onboarded}"
+: "${openclaw_gateway_pidfile:=/var/run/openclaw/openclaw_gateway.pid}"
+: "${openclaw_gateway_log:=/var/log/openclaw_gateway.log}"
+
+openclaw_gateway_flags="${openclaw_gateway_daemon_flags}"
+
+required_files="${openclaw_gateway_cmd}"
+pidfile="${openclaw_gateway_pidfile}"
+child_pidfile="${openclaw_gateway_child_pidfile}"
+command="/usr/sbin/daemon"
+command_args="-f -P ${pidfile} -p ${child_pidfile} -o ${openclaw_gateway_log} -u ${openclaw_gateway_user} -- ${openclaw_gateway_cmd} ${openclaw_gateway_cmd_flags}"
+start_precmd="${name}_prestart"
+extra_commands="init check"
+init_cmd="${name}_init"
+check_cmd="${name}_check"
+stop_cmd="${name}_stop"
+
+openclaw_gateway_pid_from_file()
+{
+	pf="${1:-}"
+	pid=''
+
+	[ -n "${pf}" ] || return 1
+	[ -f "${pf}" ] || return 1
+
+	pid=$(cat "${pf}" 2>/dev/null || true)
+	case "${pid}" in
+		''|*[!0-9]*)
+			return 1
+			;;
+		*)
+			printf '%s\n' "${pid}"
+			return 0
+			;;
+	esac
+}
+
+openclaw_gateway_child_pids()
+{
+	supervisor_pid="${1:-}"
+	[ -n "${supervisor_pid}" ] || return 0
+
+	if command -v pgrep >/dev/null 2>&1; then
+		pgrep -P "${supervisor_pid}" 2>/dev/null || true
+		return 0
+	fi
+
+	ps -axo pid=,ppid= | awk -v p="${supervisor_pid}" '$2 == p { print $1 }'
+}
+
+openclaw_gateway_all_children()
+{
+	root_pid="${1:-}"
+	queue=''
+	current=''
+
+	[ -n "${root_pid}" ] || return 0
+
+	queue="${root_pid}"
+	while [ -n "${queue}" ]; do
+		current=${queue%% *}
+		if [ "${queue}" = "${current}" ]; then
+			queue=''
+		else
+			queue=${queue#* }
+		fi
+
+		for child in $(openclaw_gateway_child_pids "${current}"); do
+			printf '%s\n' "${child}"
+			if [ -n "${queue}" ]; then
+				queue="${queue} ${child}"
+			else
+				queue="${child}"
+			fi
+		done
+	done
+}
+
+openclaw_gateway_is_alive()
+{
+	target_pid="${1:-}"
+	[ -n "${target_pid}" ] || return 1
+	kill -0 "${target_pid}" 2>/dev/null
+}
+
+openclaw_gateway_cleanup_pidfiles()
+{
+	rm -f "${pidfile}" "${child_pidfile}"
+}
+
+openclaw_gateway_wait_both_dead()
+{
+	supervisor_pid="${1:-}"
+	child_pid="${2:-}"
+	timeout="${3:-0}"
+	i=0
+
+	while [ "${i}" -lt "${timeout}" ]; do
+		if ! openclaw_gateway_is_alive "${supervisor_pid}" \
+			&& ! openclaw_gateway_is_alive "${child_pid}"; then
+			return 0
+		fi
+		sleep 1
+		i=$((i + 1))
+	done
+
+	if openclaw_gateway_is_alive "${supervisor_pid}" \
+		|| openclaw_gateway_is_alive "${child_pid}"; then
+		return 1
+	fi
+
+	return 0
+}
+
+openclaw_gateway_kill_tree()
+{
+	signal="${1:-TERM}"
+	shift || true
+
+	for root_pid in "$@"; do
+		[ -n "${root_pid}" ] || continue
+		if ! openclaw_gateway_is_alive "${root_pid}"; then
+			continue
+		fi
+
+		for desc in $(openclaw_gateway_all_children "${root_pid}"); do
+			kill "-${signal}" "${desc}" >/dev/null 2>&1 || true
+		done
+		kill "-${signal}" "${root_pid}" >/dev/null 2>&1 || true
+	done
+}
+
+openclaw_gateway_stop()
+{
+	supervisor_pid=''
+	child_pid=''
+
+	supervisor_pid=$(openclaw_gateway_pid_from_file "${pidfile}" 2>/dev/null || true)
+	child_pid=$(openclaw_gateway_pid_from_file "${child_pidfile}" 2>/dev/null || true)
+
+	if ! openclaw_gateway_is_alive "${supervisor_pid}" \
+		&& ! openclaw_gateway_is_alive "${child_pid}"; then
+		openclaw_gateway_cleanup_pidfiles
+		return 0
+	fi
+
+	echo "Stopping ${name} (supervisor=${supervisor_pid:-none} child=${child_pid:-none})..."
+	openclaw_gateway_kill_tree TERM "${child_pid}" "${supervisor_pid}"
+	if openclaw_gateway_wait_both_dead "${supervisor_pid}" "${child_pid}" "${openclaw_gateway_stop_timeout}"; then
+		openclaw_gateway_cleanup_pidfiles
+		return 0
+	fi
+
+	echo "${name} did not stop in ${openclaw_gateway_stop_timeout}s; escalating..." >&2
+	openclaw_gateway_kill_tree TERM "${child_pid}" "${supervisor_pid}"
+	sleep "${openclaw_gateway_stop_grace}"
+
+	openclaw_gateway_kill_tree KILL "${child_pid}" "${supervisor_pid}"
+
+	if openclaw_gateway_wait_both_dead "${supervisor_pid}" "${child_pid}" 5; then
+		openclaw_gateway_cleanup_pidfiles
+		return 0
+	fi
+
+	echo "failed to stop ${name} (supervisor=${supervisor_pid:-none} child=${child_pid:-none})" >&2
+	return 1
+}
+
+openclaw_gateway_prestart()
+{
+	install -d -m 0755 "$(dirname "${pidfile}")"
+	install -d -m 0755 "$(dirname "${openclaw_gateway_log}")"
+	if [ ! -f "${openclaw_gateway_log}" ]; then
+		touch "${openclaw_gateway_log}"
+	fi
+	if [ "${openclaw_gateway_user}" != "root" ]; then
+		chown "${openclaw_gateway_user}" "$(dirname "${pidfile}")" >/dev/null 2>&1 || true
+		chown "${openclaw_gateway_user}" "${openclaw_gateway_log}" >/dev/null 2>&1 || true
+	fi
+}
+
+openclaw_gateway_run_as_user()
+{
+	if [ "${openclaw_gateway_user}" = "root" ]; then
+		"$@"
+		return
+	fi
+
+	escaped=''
+	for arg in "$@"; do
+		safe=$(printf '%s' "${arg}" | sed "s/'/'\\\\''/g")
+		escaped="${escaped} '${safe}'"
+	done
+	su -m "${openclaw_gateway_user}" -c "exec${escaped}"
+}
+
+openclaw_gateway_init()
+{
+	openclaw_gateway_do_init NO
+}
+
+openclaw_gateway_force_init()
+{
+	openclaw_gateway_do_init YES
+}
+
+openclaw_gateway_do_init()
+{
+	force="${1:-NO}"
+	need_onboard=1
+
+	if [ -f "${pidfile}" ] && kill -0 "$(cat "${pidfile}")" 2>/dev/null; then
+		echo "openclaw_gateway is running; stop it before init." >&2
+		return 1
+	fi
+	openclaw_gateway_prestart
+
+	if [ ! -s "${openclaw_gateway_config}" ]; then
+		echo "Config missing at ${openclaw_gateway_config}; seeding workspace defaults..."
+		openclaw_gateway_run_as_user "${openclaw_gateway_cmd}" setup --workspace "${openclaw_gateway_workspace}"
+	fi
+
+	if [ "${force}" != "YES" ] && [ -f "${openclaw_gateway_init_marker}" ]; then
+		need_onboard=0
+	fi
+
+	if [ "${need_onboard}" -eq 1 ]; then
+		if [ "${force}" = "YES" ]; then
+			echo "Force-init requested; re-running onboarding."
+		else
+			echo "Running OpenClaw onboarding via single supported path..."
+		fi
+		set -f
+		# Intentionally split rc flags on shell words for CLI compatibility.
+		set -- ${openclaw_gateway_init_flags}
+		set +f
+		openclaw_gateway_run_as_user "${openclaw_gateway_cmd}" "$@"
+		install -d -m 0700 "$(dirname "${openclaw_gateway_init_marker}")"
+		touch "${openclaw_gateway_init_marker}"
+	else
+		echo "Init marker exists; skipping initialization."
+		echo "Run 'service ${name} force-init' to re-run onboarding intentionally."
+	fi
+}
+
+openclaw_gateway_check()
+{
+	echo "openclaw_gateway_cmd=${openclaw_gateway_cmd}"
+	echo "openclaw_gateway_cmd_flags=${openclaw_gateway_cmd_flags}"
+	echo "openclaw_gateway_daemon_flags=${openclaw_gateway_daemon_flags}"
+	echo "openclaw_gateway_child_pidfile=${openclaw_gateway_child_pidfile}"
+	echo "openclaw_gateway_config=${openclaw_gateway_config}"
+	echo "openclaw_gateway_workspace=${openclaw_gateway_workspace}"
+	echo "openclaw_gateway_init_marker=${openclaw_gateway_init_marker}"
+	echo "openclaw_gateway_init_flags=${openclaw_gateway_init_flags}"
+	"${openclaw_gateway_cmd}" --version
+}
+
+if [ "${1:-}" = "force-init" ]; then
+	openclaw_gateway_force_init
+	exit $?
+fi
+
+run_rc_command "$1"

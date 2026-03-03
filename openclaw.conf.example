@@ -1,0 +1,130 @@
+# OpenClaw Bastille Template Configuration
+#
+# Copy this file to openclaw.conf and uncomment/modify values to customize.
+# Priority: environment variables > openclaw.conf > built-in defaults.
+#
+# Syntax: `: "${VAR:=value}"` — sets VAR only if not already set (e.g. by env).
+# This ensures that `VAR=override ./openclaw-jailctl.sh --deploy` always wins.
+
+# === Core ===
+
+# Jail name (used for bastille commands and directory names)
+#: "${JAIL_NAME:=openclaw}"
+
+# FreeBSD release (must be bootstrapped: bastille bootstrap <release>)
+#: "${RELEASE:=15.0-RELEASE}"
+
+# Jail IP address with CIDR mask
+#: "${JAIL_IP:=192.168.88.88/24}"
+
+# Host bridge interface for VNET jail networking
+#: "${BRIDGE_IF:=vm-public}"
+
+# === Package source ===
+# Controls where FreeBSD packages are installed from inside the jail.
+#   local        - Poudriere local repo only (disables FreeBSD remote; requires LOCAL_PKG_REPO)
+#   remote       - FreeBSD official remote repo only (no Poudriere needed; incompatible with USE_PROXY=yes)
+#   mixed        - both enabled, local repo takes priority (remote via proxychains when USE_PROXY=yes)
+#   mirror       - mirror only (recommended preset default: official)
+#   mixed-mirror - local repo priority + mirror fallback (requires LOCAL_PKG_REPO + PKG_MIRROR_URL)
+
+#: "${PKG_SOURCE:=local}"
+
+# Poudriere repo path on host (only used when PKG_SOURCE=local, mixed, or mixed-mirror)
+#: "${LOCAL_PKG_REPO:=/usr/local/poudriere/data/packages/150amd64-2026Q1}"
+
+# Mirror preset (only used when PKG_SOURCE=mirror or mixed-mirror)
+#   official - https://pkg.freebsd.org
+#   aliyun   - https://mirrors.aliyun.com/freebsd-pkg
+#   ustc     - https://mirrors.ustc.edu.cn/freebsd-pkg
+#   nju      - https://mirrors.nju.edu.cn/freebsd-pkg
+#   custom   - use PKG_MIRROR_URL exactly as configured
+#: "${PKG_MIRROR_PRESET:=official}"
+
+# Mirror URL base override (only used when PKG_SOURCE=mirror or mixed-mirror)
+# Leave empty to use PKG_MIRROR_PRESET mapping above.
+#: "${PKG_MIRROR_URL:=}"
+
+# Optional fallback mirror URLs (comma-separated).
+# Preflight probes primary URL first, then these fallbacks in order.
+#: "${PKG_MIRROR_FALLBACKS:=}"
+
+# Mirror ABI probe target used by preflight mirror health check.
+# Normally auto-derived from RELEASE and host arch.
+#: "${PKG_ABI:=FreeBSD:15:amd64}"
+
+# === Network proxy ===
+# Controls whether commands that access the internet are routed through proxychains.
+#   yes - use proxychains (typical for restricted networks, e.g. mainland China)
+#   no  - direct connection (overseas or unrestricted networks)
+
+#: "${USE_PROXY:=yes}"
+
+# Path to proxychains.conf on host (only used when USE_PROXY=yes)
+#: "${PROXYCHAINS_CONF_HOST:=/usr/local/etc/proxychains.conf}"
+
+# === Software versions ===
+# These determine port origins and binary paths for Python and Node.js.
+# Changing these requires matching packages in your pkglist and pkg repo.
+
+# Python version (e.g. "3.11" -> lang/python311)
+#: "${PYTHON_VERSION:=3.11}"
+
+# Node.js major version (e.g. "25" -> www/node25)
+#: "${NODE_MAJOR:=25}"
+
+# === Host-side persistent directories ===
+# These directories survive jail rebuilds. They are nullfs-mounted into the jail.
+
+#: "${HOST_CONFIG_DIR:=/usr/local/etc/openclaw}"
+#: "${HOST_STATE_DIR:=/var/db/openclaw/state}"
+#: "${HOST_WORKSPACE_DIR:=/var/db/openclaw/workspace}"
+#: "${HOST_DATA_DIR:=/var/db/openclaw/data}"
+
+# === Assistant context in jail ===
+# Hybrid defaults:
+#   - Curated snapshot is enabled
+#   - Live host repo mount is disabled
+
+# Enable curated template-context snapshot copied into jail at deploy time.
+#: "${OPENCLAW_CONTEXT_SNAPSHOT_ENABLE:=yes}"
+
+# Jail path for curated snapshot content.
+#: "${OPENCLAW_CONTEXT_SNAPSHOT_DIR:=/usr/local/share/openclaw/context/template-snapshot}"
+
+# Enable read-only live mount of host repo path into jail.
+#: "${OPENCLAW_CONTEXT_LIVE_MOUNT_ENABLE:=no}"
+
+# Host repo path used for live mount (only when OPENCLAW_CONTEXT_LIVE_MOUNT_ENABLE=yes).
+# Default points to this template project root.
+#: "${OPENCLAW_CONTEXT_REPO_HOST:=${CONFIG_ROOT}}"
+
+# Jail path for live-mounted host repo.
+#: "${OPENCLAW_CONTEXT_REPO_DIR:=/usr/local/share/openclaw/context/repo-live}"
+
+# === ZFS ===
+# Only used by scripts/openclaw-zfs-datasets.sh.
+# If you don't use ZFS, ignore this — the main script creates directories directly.
+
+#: "${ZPOOL_NAME:=zroot}"
+
+# === OpenClaw ===
+
+# npm package specifier (version pinning example: openclaw@2026.2.26)
+#: "${OPENCLAW_NPM_SPEC:=openclaw@latest}"
+
+# Package list file (leave empty to auto-detect from pkglist/ directory)
+#: "${PKGLIST_FILE:=}"
+
+# === Bastille ===
+# Override if bastille uses a non-default prefix.
+# Auto-detected from /usr/local/etc/bastille/bastille.conf if not set.
+
+#: "${BASTILLE_PREFIX:=/usr/local/bastille}"
+#: "${TEMPLATE_ROOT:=${BASTILLE_PREFIX}/templates/local/openclaw}"
+
+# === Bootstrap origins ===
+# Auto-derived from USE_PROXY, PYTHON_VERSION, and NODE_MAJOR.
+# Override only if you need non-standard bootstrap packages.
+
+#: "${BOOTSTRAP_ORIGINS:=ports-mgmt/pkg net/proxychains-ng lang/python311 www/node25}"

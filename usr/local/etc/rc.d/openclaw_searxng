@@ -1,0 +1,40 @@
+#!/bin/sh
+#
+# PROVIDE: openclaw_searxng
+# REQUIRE: DAEMON NETWORKING
+# BEFORE: LOGIN openclaw_gateway
+# KEYWORD: shutdown
+#
+
+. /etc/rc.subr
+
+name="openclaw_searxng"
+rcvar="${name}_enable"
+
+load_rc_config "${name}"
+
+: "${openclaw_searxng_enable:=NO}"
+: "${openclaw_searxng_user:=www}"
+: "${openclaw_searxng_wrapper:=/usr/local/libexec/openclaw/searxng-run.sh}"
+: "${openclaw_searxng_log:=/var/db/openclaw/state/searxng.log}"
+: "${openclaw_searxng_pidfile:=/var/run/openclaw_searxng.pid}"
+: "${openclaw_searxng_flags:=}"
+
+required_files="${openclaw_searxng_wrapper}"
+pidfile="${openclaw_searxng_pidfile}"
+command="/usr/sbin/daemon"
+procname="daemon"
+command_args="-c -o ${openclaw_searxng_log} -P ${pidfile} -u ${openclaw_searxng_user} -- ${openclaw_searxng_wrapper} ${openclaw_searxng_flags}"
+start_precmd="${name}_precmd"
+
+openclaw_searxng_precmd()
+{
+	install -d -m 0755 "$(dirname "${pidfile}")"
+	install -d -m 0755 "$(dirname "${openclaw_searxng_log}")"
+	install -o "${openclaw_searxng_user}" /dev/null "${pidfile}"
+	if [ ! -f "${openclaw_searxng_log}" ]; then
+		install -o "${openclaw_searxng_user}" -m 0640 /dev/null "${openclaw_searxng_log}"
+	fi
+}
+
+run_rc_command "$1"
