@@ -194,6 +194,15 @@ localnet ::1/128
 
 If you update host `proxychains.conf`, restart or rebuild the jail (or at minimum restart the affected long-running assistant/gateway processes) so new processes pick up the updated rules.
 
+Stateful CLI baseline (XDG, applies to all XDG-aware tools including `gh`):
+
+- `XDG_CONFIG_HOME=/var/db/openclaw/state/xdg/config`
+- `XDG_CACHE_HOME=/var/db/openclaw/state/xdg/cache`
+- `XDG_STATE_HOME=/var/db/openclaw/state/xdg/state`
+- Baseline is injected by template runtime for `openclaw` wrapper and `openclaw_gateway` service, so assistant-executed shell commands inherit it without per-tool wrappers.
+
+Because these paths live under the persisted `state` mount, CLI auth/session/config data survive jail rebuilds.
+
 ## Gateway rc script in jail
 
 Template installs `/usr/local/etc/rc.d/openclaw_gateway` and sets `openclaw_gateway_enable=YES`.
@@ -237,6 +246,10 @@ bastille cmd openclaw sysrc openclaw_gateway_autostart_if_initialized=YES
 bastille cmd openclaw sysrc openclaw_gateway_init_flags='onboard --flow manual --mode local --no-install-daemon'
 bastille cmd openclaw sysrc openclaw_gateway_stop_timeout='20'
 bastille cmd openclaw sysrc openclaw_gateway_stop_grace='3'
+bastille cmd openclaw sysrc openclaw_gateway_xdg_base='/var/db/openclaw/state/xdg'
+bastille cmd openclaw sysrc openclaw_gateway_xdg_config_home='/var/db/openclaw/state/xdg/config'
+bastille cmd openclaw sysrc openclaw_gateway_xdg_cache_home='/var/db/openclaw/state/xdg/cache'
+bastille cmd openclaw sysrc openclaw_gateway_xdg_state_home='/var/db/openclaw/state/xdg/state'
 ```
 
 Use `openclaw_gateway_cmd_flags` for OpenClaw subcommands. Keep daemon-level options in `openclaw_gateway_daemon_flags`.

@@ -27,6 +27,14 @@ load_rc_config "${name}"
 : "${openclaw_gateway_autostart_if_initialized:=YES}"
 : "${openclaw_gateway_pidfile:=/var/run/openclaw/openclaw_gateway.pid}"
 : "${openclaw_gateway_log:=/var/log/openclaw_gateway.log}"
+: "${openclaw_gateway_xdg_base:=/var/db/openclaw/state/xdg}"
+: "${openclaw_gateway_xdg_config_home:=${openclaw_gateway_xdg_base}/config}"
+: "${openclaw_gateway_xdg_cache_home:=${openclaw_gateway_xdg_base}/cache}"
+: "${openclaw_gateway_xdg_state_home:=${openclaw_gateway_xdg_base}/state}"
+
+export XDG_CONFIG_HOME="${openclaw_gateway_xdg_config_home}"
+export XDG_CACHE_HOME="${openclaw_gateway_xdg_cache_home}"
+export XDG_STATE_HOME="${openclaw_gateway_xdg_state_home}"
 
 openclaw_gateway_flags="${openclaw_gateway_daemon_flags}"
 
@@ -196,12 +204,17 @@ openclaw_gateway_prestart()
 {
 	install -d -m 0755 "$(dirname "${pidfile}")"
 	install -d -m 0755 "$(dirname "${openclaw_gateway_log}")"
+	install -d -m 0700 "${openclaw_gateway_xdg_config_home}"
+	install -d -m 0700 "${openclaw_gateway_xdg_state_home}"
+	install -d -m 0700 "${openclaw_gateway_xdg_cache_home}"
 	if [ ! -f "${openclaw_gateway_log}" ]; then
 		touch "${openclaw_gateway_log}"
 	fi
 	if [ "${openclaw_gateway_user}" != "root" ]; then
 		chown "${openclaw_gateway_user}" "$(dirname "${pidfile}")" >/dev/null 2>&1 || true
 		chown "${openclaw_gateway_user}" "${openclaw_gateway_log}" >/dev/null 2>&1 || true
+		chown "${openclaw_gateway_user}" "${openclaw_gateway_xdg_config_home}" \
+			"${openclaw_gateway_xdg_state_home}" "${openclaw_gateway_xdg_cache_home}" >/dev/null 2>&1 || true
 	fi
 }
 
@@ -315,6 +328,9 @@ openclaw_gateway_check()
 	echo "openclaw_gateway_init_marker=${openclaw_gateway_init_marker}"
 	echo "openclaw_gateway_autostart_if_initialized=${openclaw_gateway_autostart_if_initialized}"
 	echo "openclaw_gateway_init_flags=${openclaw_gateway_init_flags}"
+	echo "openclaw_gateway_xdg_config_home=${openclaw_gateway_xdg_config_home}"
+	echo "openclaw_gateway_xdg_cache_home=${openclaw_gateway_xdg_cache_home}"
+	echo "openclaw_gateway_xdg_state_home=${openclaw_gateway_xdg_state_home}"
 	"${openclaw_gateway_cmd}" --version
 }
 

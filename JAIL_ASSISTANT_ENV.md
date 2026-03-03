@@ -18,6 +18,10 @@
 - OpenClaw 代理分流策略（持久化）：`/usr/local/etc/openclaw/proxy-routing.conf`
 - OpenClaw 代理分流默认模板（仓库版本控制）：`/usr/local/share/openclaw/defaults/proxy-routing.conf`
 - 状态目录：`/var/db/openclaw/state`
+- 统一 XDG 状态根：`/var/db/openclaw/state/xdg`
+  - `XDG_CONFIG_HOME=/var/db/openclaw/state/xdg/config`
+  - `XDG_CACHE_HOME=/var/db/openclaw/state/xdg/cache`
+  - `XDG_STATE_HOME=/var/db/openclaw/state/xdg/state`
 - Gateway 初始化标记（持久化）：`/var/db/openclaw/state/.onboarded`
 - 工作区目录：`/var/db/openclaw/workspace`
 - 持久化数据目录：`/var/db/openclaw/data`
@@ -100,6 +104,9 @@
   - 默认策略下，本地控制/UX 命令（如 `gateway`、`daemon`、`status`、`health`、`config`、`cron`、`tui`）不走代理；明确需要外网的执行路径会走代理。
   - 对于不走代理的 direct 路径，wrapper 会在执行前清理 `LD_PRELOAD` 与 `PROXYCHAINS_*`，避免父进程 proxychains 注入影响本地 loopback Gateway/RPC 通信。
   - `onboard` 在使用远程相关参数（如 `--mode` / `--remote-url` / `--remote-token`）时会走代理。
+- 模板为“有状态 CLI”提供统一 XDG 基线（非工具特例）：
+  - `openclaw_gateway` 服务进程与 `openclaw` wrapper 统一导出 `XDG_CONFIG_HOME/XDG_CACHE_HOME/XDG_STATE_HOME` 到 `/var/db/openclaw/state/xdg/*`。
+  - 对于遵循 XDG 的工具（如 `gh`），认证与配置会默认落在持久化 state 下，jail 重建后可复用。
 
 ## 5. Python 与 uv 约定
 - 统一入口：`python3`（对应 `python3.11`）。

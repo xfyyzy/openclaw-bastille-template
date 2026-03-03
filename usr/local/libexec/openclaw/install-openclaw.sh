@@ -28,6 +28,7 @@ maybe_proxy() {
 mkdir -p "${state_dir}" "${workspace_dir}" "$(dirname "${config_path}")"
 rm -rf "${install_root}"
 mkdir -p "${install_root}"
+install -d -m 0700 "${state_dir}/xdg/config" "${state_dir}/xdg/state" "${state_dir}/xdg/cache"
 
 export CI=1
 
