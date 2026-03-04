@@ -38,6 +38,12 @@ Other lifecycle actions:
 ./openclaw-jailctl.sh --destroy
 ```
 
+Emergency bypass (deploy only, skips all preflight checks):
+
+```sh
+./openclaw-jailctl.sh --deploy --no-preflight
+```
+
 ## Local Leak-Prevention Hooks
 
 To block secret leaks before code leaves your machine, enable versioned hooks:

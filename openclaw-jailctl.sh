@@ -20,12 +20,13 @@ fi
 
 MODE="deploy"
 MODE_EXPLICIT=0
+SKIP_PREFLIGHT=0
 SELECTED_PKG_MIRROR_URL="${PKG_MIRROR_URL}"
 
 usage() {
   cat <<USAGE
 Usage:
-  $(basename "$0") [--deploy|--preflight|--stop|--destroy] [--help]
+  $(basename "$0") [--deploy|--preflight|--stop|--destroy] [--no-preflight] [--help]
 
 Manage lifecycle of jail '${JAIL_NAME}' using current configuration.
 
@@ -34,6 +35,7 @@ Options:
   --preflight   Run prerequisite checks only (no deployment)
   --stop        Stop existing jail only (no destroy)
   --destroy     Stop and destroy existing jail
+  --no-preflight  Skip preflight checks (deploy mode only; risky)
   --help, -h    Show this help and current configuration
 
 Configuration (openclaw.conf or environment variables):
@@ -95,11 +97,17 @@ for _arg in "$@"; do
     --preflight) set_mode "preflight" ;;
     --stop)      set_mode "stop" ;;
     --destroy)   set_mode "destroy" ;;
+    --no-preflight) SKIP_PREFLIGHT=1 ;;
     --help|-h)   usage; exit 0 ;;
     *)           echo "unknown argument: ${_arg}" >&2; usage >&2; exit 1 ;;
   esac
 done
 unset _arg
+
+if [ "${SKIP_PREFLIGHT}" -eq 1 ] && [ "${MODE}" != "deploy" ]; then
+  echo "--no-preflight can only be used with --deploy" >&2
+  exit 1
+fi
 
 # --- Preflight checks ---
 
@@ -737,9 +745,14 @@ fi
 
 # --- Run preflight ---
 
-echo "Running preflight checks..."
-echo ""
-preflight
+if [ "${SKIP_PREFLIGHT}" -eq 1 ]; then
+  echo "Skipping preflight checks (--no-preflight)."
+  preflight_ok=1
+else
+  echo "Running preflight checks..."
+  echo ""
+  preflight
+fi
 
 if [ "${MODE}" = "preflight" ]; then
   exit $((1 - preflight_ok))
