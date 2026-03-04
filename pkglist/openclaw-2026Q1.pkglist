@@ -47,7 +47,7 @@ www/aria2
 www/py-searxng-devel
 security/gnupg
 textproc/hs-pandoc
-databases/postgresql17-client
+databases/postgresql18-client
 databases/redis
 databases/sqlite3
 sysutils/k9s
