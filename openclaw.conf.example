@@ -53,6 +53,12 @@
 # Normally auto-derived from RELEASE and host arch.
 #: "${PKG_ABI:=FreeBSD:15:amd64}"
 
+# Mirror probe timeout knobs (seconds).
+# Preflight uses these values when downloading mirror metadata/packages.
+# Increase these when the selected mirror is reachable but slow.
+#: "${MIRROR_PROBE_CONNECT_TIMEOUT:=10}"
+#: "${MIRROR_PROBE_MAX_TIME:=60}"
+
 # === Network proxy ===
 # Controls whether commands that access the internet are routed through proxychains.
 #   yes - use proxychains (typical for restricted networks, e.g. mainland China)

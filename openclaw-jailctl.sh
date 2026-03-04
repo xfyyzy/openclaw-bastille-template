@@ -48,6 +48,8 @@ Configuration (openclaw.conf or environment variables):
   PKG_MIRROR_URL    = ${PKG_MIRROR_URL}
   PKG_MIRROR_FALLBACKS = ${PKG_MIRROR_FALLBACKS:-<none>}
   PKG_ABI           = ${PKG_ABI}
+  MIRROR_PROBE_CONNECT_TIMEOUT = ${MIRROR_PROBE_CONNECT_TIMEOUT}
+  MIRROR_PROBE_MAX_TIME = ${MIRROR_PROBE_MAX_TIME}
   PROXYCHAINS_CONF_HOST = ${PROXYCHAINS_CONF_HOST}
   OPENCLAW_NPM_SPEC = ${OPENCLAW_NPM_SPEC}
   PYTHON_VERSION    = ${PYTHON_VERSION}
@@ -116,16 +118,27 @@ mirror_download_tool() {
   return 1
 }
 
+is_positive_integer() {
+  case "$1" in
+    ''|*[!0-9]*|0) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+mirror_probe_log() {
+  echo "mirror probe step: $*"
+}
+
 # Download URL to file path.
 download_to_file() {
   _url="$1"
   _out="$2"
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL --connect-timeout 10 --max-time 60 -o "${_out}" "${_url}"
+    curl -fsSL --connect-timeout "${MIRROR_PROBE_CONNECT_TIMEOUT}" --max-time "${MIRROR_PROBE_MAX_TIME}" -o "${_out}" "${_url}"
     return 0
   fi
   if command -v fetch >/dev/null 2>&1; then
-    fetch -q -T 60 -o "${_out}" "${_url}"
+    fetch -q -T "${MIRROR_PROBE_MAX_TIME}" -o "${_out}" "${_url}"
     return 0
   fi
   return 127
@@ -155,13 +168,16 @@ check_mirror_candidate() {
   _relpath=''
 
   for _candidate_rel in "${PKG_ABI}/quarterly" "${_abi_slash}/quarterly"; do
+    mirror_probe_log "try packagesite ${_base}/${_candidate_rel}/packagesite.pkg"
     if download_to_file "${_base}/${_candidate_rel}/packagesite.pkg" "${_site_tmp}" >/dev/null 2>&1; then
+      mirror_probe_log "packagesite matched ABI path ${_candidate_rel}"
       _relpath="${_candidate_rel}"
       break
     fi
   done
 
   if [ -z "${_relpath}" ]; then
+    mirror_probe_log "packagesite probe failed for candidate ${_base}"
     rm -f "${_site_tmp}" "${_pkg_tmp}"
     return 1
   fi
@@ -173,17 +189,22 @@ check_mirror_candidate() {
 
   # shellcheck disable=SC2086
   for _origin in ${_required_origins}; do
+    mirror_probe_log "resolve origin ${_origin} from packagesite"
     _pkg_rel=$(packagesite_pkg_path "${_site_tmp}" "${_origin}" || true)
     if [ -z "${_pkg_rel}" ]; then
+      mirror_probe_log "origin missing in packagesite: ${_origin}"
       rm -f "${_site_tmp}" "${_pkg_tmp}"
       return 1
     fi
+    mirror_probe_log "download package ${_base}/${_relpath}/${_pkg_rel}"
     if ! download_to_file "${_base}/${_relpath}/${_pkg_rel}" "${_pkg_tmp}" >/dev/null 2>&1; then
+      mirror_probe_log "package download failed for origin ${_origin}"
       rm -f "${_site_tmp}" "${_pkg_tmp}"
       return 1
     fi
   done
 
+  mirror_probe_log "candidate healthy: ${_base}"
   rm -f "${_site_tmp}" "${_pkg_tmp}"
   return 0
 }
@@ -367,6 +388,30 @@ preflight() {
         echo "[ OK ] PKG_MIRROR_FALLBACKS = <none>"
       fi
 
+      _probe_timeout_valid=1
+      if is_positive_integer "${MIRROR_PROBE_CONNECT_TIMEOUT}"; then
+        echo "[ OK ] MIRROR_PROBE_CONNECT_TIMEOUT = ${MIRROR_PROBE_CONNECT_TIMEOUT}"
+      else
+        echo "[FAIL] MIRROR_PROBE_CONNECT_TIMEOUT must be a positive integer: ${MIRROR_PROBE_CONNECT_TIMEOUT}" >&2
+        _errors=$((_errors + 1))
+        _probe_timeout_valid=0
+      fi
+
+      if is_positive_integer "${MIRROR_PROBE_MAX_TIME}"; then
+        echo "[ OK ] MIRROR_PROBE_MAX_TIME = ${MIRROR_PROBE_MAX_TIME}"
+      else
+        echo "[FAIL] MIRROR_PROBE_MAX_TIME must be a positive integer: ${MIRROR_PROBE_MAX_TIME}" >&2
+        _errors=$((_errors + 1))
+        _probe_timeout_valid=0
+      fi
+
+      if [ "${_probe_timeout_valid}" -eq 1 ] && [ "${MIRROR_PROBE_CONNECT_TIMEOUT}" -gt "${MIRROR_PROBE_MAX_TIME}" ]; then
+        echo "[FAIL] MIRROR_PROBE_CONNECT_TIMEOUT cannot exceed MIRROR_PROBE_MAX_TIME" >&2
+        echo "       -> set connect timeout <= max transfer time" >&2
+        _errors=$((_errors + 1))
+        _probe_timeout_valid=0
+      fi
+
       if _tool=$(mirror_download_tool); then
         echo "[ OK ] mirror probe downloader = ${_tool}"
       else
@@ -375,7 +420,7 @@ preflight() {
         _errors=$((_errors + 1))
       fi
 
-      if [ -n "${PKG_MIRROR_URL}" ] && mirror_download_tool >/dev/null 2>&1; then
+      if [ -n "${PKG_MIRROR_URL}" ] && mirror_download_tool >/dev/null 2>&1 && [ "${_probe_timeout_valid}" -eq 1 ]; then
         if select_healthy_mirror; then
           echo "[ OK ] selected pkg mirror = ${SELECTED_PKG_MIRROR_URL}"
         else

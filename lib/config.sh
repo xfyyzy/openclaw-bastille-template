@@ -87,6 +87,11 @@ esac
 : "${PKG_ABI:=FreeBSD:${_release_major}:${_pkg_arch}}"
 unset _release_major _host_arch _pkg_arch
 
+# Mirror probe networking timeout knobs (seconds).
+# Used by host-side preflight mirror health checks.
+: "${MIRROR_PROBE_CONNECT_TIMEOUT:=10}"
+: "${MIRROR_PROBE_MAX_TIME:=60}"
+
 # Network proxy: yes | no
 : "${USE_PROXY:=yes}"
 : "${PROXYCHAINS_CONF_HOST:=/usr/local/etc/proxychains.conf}"

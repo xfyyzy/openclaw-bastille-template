@@ -105,6 +105,7 @@ When using `PKG_SOURCE=mirror` or `PKG_SOURCE=mixed-mirror`, the template resolv
 
 You can define backup mirrors via `PKG_MIRROR_FALLBACKS` (comma-separated URLs).  
 Preflight checks probe `packagesite.pkg` and bootstrap package paths (`ports-mgmt/pkg` and, when proxy is enabled, `net/proxychains-ng`) and automatically select the first healthy mirror before jail creation.
+Mirror probe timeout knobs are configurable via `MIRROR_PROBE_CONNECT_TIMEOUT` and `MIRROR_PROBE_MAX_TIME` (seconds), and preflight now prints per-step probe logs (`mirror probe step: ...`) so slow mirrors are visible rather than appearing stuck.
 
 This template installs OpenClaw from npm release artifacts only (`openclaw@latest` by default), using `npm`.
 This avoids FreeBSD source-build breakpoints while keeping deployment deterministic.
