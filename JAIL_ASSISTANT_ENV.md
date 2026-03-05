@@ -60,8 +60,8 @@
 - 模板默认安装 `SearXNG` 并注册 rc 服务：`openclaw_searxng`。
 - 服务启动后监听 `127.0.0.1:8888`，仅供 jail 内助手本地调用。
 - 启动包装脚本会强制导出 `SEARXNG_BIND_ADDRESS=127.0.0.1` 与 `SEARXNG_PORT=8888`，避免被外部监听配置误改。
-- `openclaw_searxng_enable=YES` 表示在 rc 启动阶段自动拉起；但在 `--deploy` 首次创建场景，模板应用发生在 jail 已启动后，服务可能不会在该次首次创建中立即启动。
-- 因此首次 deploy 后建议执行一次：`service openclaw_searxng status || service openclaw_searxng start`（或重启 jail）。
+- `openclaw_searxng_enable=YES` 表示在 rc 启动阶段自动拉起；同时 `openclaw-jailctl.sh --deploy` 在模板应用完成后会再执行一次幂等探测（`status -> start -> status`），尽量保证首次部署即刻可用。
+- 若该探测仍失败，deploy 不会中断，会输出告警并提示手动恢复：`service openclaw_searxng status` / `service openclaw_searxng start`。
 - 常用检查命令：
   - `service openclaw_searxng status`
   - `service openclaw_searxng restart`

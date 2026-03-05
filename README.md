@@ -24,10 +24,10 @@ sudo ./scripts/openclaw-zfs-datasets.sh destroy --yes
 ./openclaw-jailctl.sh --deploy
 ```
 
-Post-deploy quick check (recommended):
+Post-deploy quick check (optional):
 
 ```sh
-bastille cmd openclaw service openclaw_searxng status || bastille cmd openclaw service openclaw_searxng start
+bastille cmd openclaw service openclaw_searxng status
 ```
 
 Other lifecycle actions:
@@ -293,8 +293,8 @@ bastille cmd openclaw service openclaw_gateway force-init
 - Service is configured for local-only access at `http://127.0.0.1:8888` (inside jail).
 - Startup wrapper enforces `SEARXNG_BIND_ADDRESS=127.0.0.1` and `SEARXNG_PORT=8888`.
 - `openclaw_searxng_enable=YES` means the service auto-starts during rc boot.
-- In `--deploy` first-create flow, template application happens after jail boot, so SearXNG may not be started immediately on that first deployment.
-- After first deploy, run once: `bastille cmd openclaw service openclaw_searxng status || bastille cmd openclaw service openclaw_searxng start` (or reboot jail).
+- `openclaw-jailctl.sh --deploy` now performs an idempotent post-template start probe (`status -> start -> status`) to make first deployment immediately usable.
+- If that probe still fails, deployment continues and prints a warning with manual recovery commands (`service ... status/start`).
 - First deploy seeds persistent config at `/usr/local/etc/openclaw/searxng.yml` when the file is missing:
   - `use_default_settings: true`
   - `search.formats: [html, json]`

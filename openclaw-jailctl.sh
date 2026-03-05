@@ -901,12 +901,32 @@ apply_template() {
     --arg "LOCAL_BUILD_ORIGINS=${LOCAL_BUILD_ORIGINS}"
 }
 
+ensure_searxng_started_after_deploy() {
+  # Deploy flow creates/boots jail first, then applies template; rc boot phase has
+  # already passed by the time openclaw_searxng_enable is written.
+  if bastille cmd "${JAIL_NAME}" service openclaw_searxng status >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if bastille cmd "${JAIL_NAME}" service openclaw_searxng start >/dev/null 2>&1 \
+    && bastille cmd "${JAIL_NAME}" service openclaw_searxng status >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "warning: openclaw_searxng is not running after deploy; continue with manual recovery:" >&2
+  echo "  bastille cmd ${JAIL_NAME} service openclaw_searxng status" >&2
+  echo "  bastille cmd ${JAIL_NAME} service openclaw_searxng start" >&2
+  return 0
+}
+
 if ! apply_template; then
   echo "warning: bastille template failed; cleaning up incomplete jail" >&2
   destroy_jail
   cleanup_vnet_ifaces
   exit 1
 fi
+
+ensure_searxng_started_after_deploy
 
 # --- Deployment summary ---
 
