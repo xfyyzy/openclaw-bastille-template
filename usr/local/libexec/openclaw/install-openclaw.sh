@@ -7,6 +7,7 @@ db_dir='${OPENCLAW_DB_DIR}'
 state_dir='${OPENCLAW_STATE_DIR}'
 workspace_dir='${OPENCLAW_WORKSPACE}'
 config_path='${OPENCLAW_ETC_DIR}/openclaw.json'
+runtime_context_path='${OPENCLAW_ETC_DIR}/runtime-context.env'
 proxy_routing_path='${OPENCLAW_ETC_DIR}/proxy-routing.conf'
 proxy_routing_default_path='/usr/local/share/openclaw/defaults/proxy-routing.conf'
 legacy_home_paths_path='${OPENCLAW_ETC_DIR}/legacy-home-paths.conf'
@@ -15,6 +16,11 @@ prepare_stateful_home='/usr/local/libexec/openclaw/prepare-stateful-home.sh'
 searxng_settings_path='${OPENCLAW_ETC_DIR}/searxng.yml'
 use_proxy='${USE_PROXY}'
 python_bin='${PYTHON_BIN}'
+proxy_enabled='no'
+
+if [ "${use_proxy}" = "yes" ]; then
+  proxy_enabled='yes'
+fi
 
 # Packages whose postinstall/build scripts are allowed to run.
 # All other packages have their scripts suppressed via --ignore-scripts.
@@ -177,6 +183,12 @@ if [ ! -s "${config_path}" ]; then
 }
 JSON
 fi
+
+cat > "${runtime_context_path}" <<EOF_CTX
+# Generated during deploy/install. Read by in-jail assistant contract.
+OPENCLAW_PROXY_ENABLED=${proxy_enabled}
+EOF_CTX
+chmod 0644 "${runtime_context_path}"
 
 if [ ! -s "${proxy_routing_path}" ]; then
   if [ ! -r "${proxy_routing_default_path}" ]; then

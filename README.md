@@ -75,6 +75,12 @@ Environment prompt for in-jail assistants:
 
 - `JAIL_ASSISTANT_ENV.md`
 
+## Documentation Audience
+
+- This `README.md` is the host-side developer/operator guide (deploy, template runtime, packaging policy, maintenance workflows).
+- The in-jail assistant runtime contract is `JAIL_ASSISTANT_ENV.md`, distributed through the default context snapshot at `OPENCLAW_CONTEXT_SNAPSHOT_DIR`.
+- The default snapshot currently contains `JAIL_ASSISTANT_ENV.md`, `Bastillefile`, and `pkglist/`.
+
 ## Assistant context in jail
 
 Hybrid mode (default profile A):

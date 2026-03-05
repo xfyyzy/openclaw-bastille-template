@@ -16,6 +16,7 @@
 ## 3. 关键路径
 - 配置文件：`/usr/local/etc/openclaw/openclaw.json`
 - OpenClaw 代理分流策略（持久化）：`/usr/local/etc/openclaw/proxy-routing.conf`
+- 运行时上下文标记（持久化）：`/usr/local/etc/openclaw/runtime-context.env`
 - OpenClaw 代理分流默认模板（仓库版本控制）：`/usr/local/share/openclaw/defaults/proxy-routing.conf`
 - OpenClaw legacy HOME 持久化路径清单（持久化）：`/usr/local/etc/openclaw/legacy-home-paths.conf`
 - OpenClaw legacy HOME 持久化默认模板（仓库版本控制）：`/usr/local/share/openclaw/defaults/legacy-home-paths.conf`
@@ -60,8 +61,8 @@
 - 模板默认安装 `SearXNG` 并注册 rc 服务：`openclaw_searxng`。
 - 服务启动后监听 `127.0.0.1:8888`，仅供 jail 内助手本地调用。
 - 启动包装脚本会强制导出 `SEARXNG_BIND_ADDRESS=127.0.0.1` 与 `SEARXNG_PORT=8888`，避免被外部监听配置误改。
-- `openclaw_searxng_enable=YES` 表示在 rc 启动阶段自动拉起；同时 `openclaw-jailctl.sh --deploy` 在模板应用完成后会再执行一次幂等探测（`status -> start -> status`），尽量保证首次部署即刻可用。
-- 若该探测仍失败，deploy 不会中断，会输出告警并提示手动恢复：`service openclaw_searxng status` / `service openclaw_searxng start`。
+- 期望状态：`service openclaw_searxng status` 显示 running。
+- 若未运行，先执行 `service openclaw_searxng start`；仍失败则查看日志定位原因。
 - 常用检查命令：
   - `service openclaw_searxng status`
   - `service openclaw_searxng restart`
@@ -99,14 +100,19 @@
   - `service openclaw_gateway force-init`
   - `service openclaw_gateway restart`
 
-## 4. 网络访问约束
-- 宿主机位于 China，默认无法直接访问国际互联网（或可达性不稳定）。
-- jail 内提供 `proxychains`；访问国际互联网时请使用：
+## 4. 网络访问约束（按运行时标记判定）
+- 运行时标记文件：`/usr/local/etc/openclaw/runtime-context.env`
+- 关键字段：`OPENCLAW_PROXY_ENABLED=yes|no`
+- 建议先读取并确认当前代理模式：
+  - `. /usr/local/etc/openclaw/runtime-context.env 2>/dev/null || true`
+  - `printf '%s\n' "${OPENCLAW_PROXY_ENABLED:-no}"`
+- jail 内提供 `proxychains`；当 `OPENCLAW_PROXY_ENABLED=yes` 时，访问国际互联网请优先使用：
   - `proxychains -q <command>`
 - 常见示例：
   - `proxychains -q git clone <repo>`
   - `proxychains -q curl -I https://example.com`
   - `proxychains -q uv pip install <package>`
+- 当 `OPENCLAW_PROXY_ENABLED=no` 时，外网命令默认直连。
 - 纯本地操作（文件读写、本地构建、本地服务访问）不需要加 `proxychains`。
 - 该规则主要用于 shell 中直接执行的外网命令；`openclaw` 命令采用“按命令路由”的代理策略：
   - 主开关优先：当模板代理开关不是 `USE_PROXY=yes` 时，`openclaw` 不会走 `proxychains`，也不会应用命令分流。
