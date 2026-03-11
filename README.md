@@ -229,6 +229,10 @@ Rust toolchain baseline (stateful by design):
 - `SCCACHE_DIR=/var/db/openclaw/state/sccache`
 - `PATH` prepends `${CARGO_HOME}/bin` for both `/usr/local/bin/openclaw` and `openclaw_gateway`.
 - Template/runtime only provides stable paths and environment wiring; toolchain/components/targets remain mutable state under `state/*`.
+- Baseline package origins are `devel/rustup-init` and `devel/sccache` (plus existing `lang/rust` toolchain).
+- Compatibility entrypoint: template links `/usr/local/bin/rustup` -> `/usr/local/bin/rustup-init` when needed.
+- `cargo-miri` and `cargo-nextest` are intentionally not preinstalled by template; install them at runtime into `${CARGO_HOME}/bin` and `${RUSTUP_HOME}`.
+- For scope clarity: plain `bastille cmd ... env` shell does not guarantee this PATH order.
 
 Legacy HOME baseline (for non-XDG tools such as `ssh`):
 

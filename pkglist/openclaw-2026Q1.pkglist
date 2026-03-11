@@ -28,9 +28,11 @@ graphics/vips
 graphics/ImageMagick7
 lang/rust
 devel/rust-analyzer
+devel/rustup-init
 devel/cmake
 devel/ninja
 devel/ccache
+devel/sccache
 lang/go
 java/openjdk21
 devel/gradle

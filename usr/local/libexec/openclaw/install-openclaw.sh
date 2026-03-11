@@ -96,6 +96,11 @@ if [ ! -x /usr/local/bin/python3 ] && [ -x "/usr/local/bin/${python_bin}" ]; the
   ln -sf "/usr/local/bin/${python_bin}" /usr/local/bin/python3
 fi
 
+# FreeBSD ships rustup as rustup-init; provide a stable rustup entrypoint.
+if [ -x /usr/local/bin/rustup-init ] && [ ! -x /usr/local/bin/rustup ]; then
+  ln -sf /usr/local/bin/rustup-init /usr/local/bin/rustup
+fi
+
 export PYTHON="${python_cmd}"
 
 cat > "${install_root}/package.json" <<'JSON'

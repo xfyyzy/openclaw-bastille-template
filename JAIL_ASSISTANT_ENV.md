@@ -30,6 +30,9 @@
   - `RUSTUP_HOME=/var/db/openclaw/state/rustup`
   - `SCCACHE_DIR=/var/db/openclaw/state/sccache`
   - `PATH` 默认前置 `${CARGO_HOME}/bin`
+  - 模板基线包 origin：`devel/rustup-init`、`devel/sccache`
+  - 兼容入口：必要时会建立 `/usr/local/bin/rustup -> /usr/local/bin/rustup-init`
+  - `cargo-miri`、`cargo-nextest` 默认不预装（运行态按需安装）
 - 统一 legacy HOME 状态根：`/var/db/openclaw/state/home`
   - root profile: `/var/db/openclaw/state/home/root`
   - openclaw profile: `/var/db/openclaw/state/home/openclaw`
@@ -132,6 +135,7 @@
 - 模板为 Rust 工具链提供统一状态基线（非工具特例）：
   - `openclaw_gateway` 与 `openclaw` wrapper 统一导出 `CARGO_HOME/RUSTUP_HOME/SCCACHE_DIR` 到 `/var/db/openclaw/state/{cargo,rustup,sccache}`，并前置 `${CARGO_HOME}/bin` 到 `PATH`。
   - 该基线只负责稳定路径与环境，不把 toolchain/targets/components 固化在模板层。
+  - 普通 `exec shell` 不保证该 PATH 顺序；若需该顺序，请走 `openclaw` wrapper 或 `openclaw_gateway` 进程上下文。
 - 模板为“不遵循 XDG 的 HOME 路径”提供统一 legacy HOME 基线（非工具特例）：
   - helper: `/usr/local/libexec/openclaw/prepare-stateful-home.sh`
   - 按 `/usr/local/etc/openclaw/legacy-home-paths.conf` 声明式清单，把非 XDG 路径（如 `.ssh`、`.gnupg`、`.gitconfig`）链接到 `/var/db/openclaw/state/home/{profile}`。
