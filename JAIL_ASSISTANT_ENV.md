@@ -37,6 +37,7 @@
   - root profile: `/var/db/openclaw/state/home/root`
   - openclaw profile: `/var/db/openclaw/state/home/openclaw`
 - Gateway 初始化标记（持久化）：`/var/db/openclaw/state/.onboarded`
+- 本地启动钩子脚本（持久化，可不存在）：`/usr/local/etc/openclaw/boot-local.sh`
 - 工作区目录：`/var/db/openclaw/workspace`
 - 持久化数据目录：`/var/db/openclaw/data`
 - SearXNG 配置（持久化）：`/usr/local/etc/openclaw/searxng.yml`
@@ -107,6 +108,18 @@
   - `service openclaw_gateway init`
   - `service openclaw_gateway force-init`
   - `service openclaw_gateway restart`
+
+## 3.5 Local Boot Hook（本地启动钩子）
+- rc 服务名：`openclaw_local_boot`
+- 固定脚本路径：`/usr/local/etc/openclaw/boot-local.sh`（持久化，允许不存在）
+- 启动行为：
+  - 脚本不存在：打印 skip 信息并返回成功，不阻断 jail 启动。
+  - 脚本存在且退出码非 0：`openclaw_local_boot` 启动失败（严格）。
+- `openclaw-jailctl.sh --deploy` 行为：
+  - 模板应用完成后会立即执行一次：`service openclaw_local_boot start`
+  - 若该执行失败，deploy 直接失败并中止（不会继续后续成功流程）
+- 常用命令：
+  - `service openclaw_local_boot start`
 
 ## 4. 网络访问约束（按运行时标记判定）
 - 运行时标记文件：`/usr/local/etc/openclaw/runtime-context.env`

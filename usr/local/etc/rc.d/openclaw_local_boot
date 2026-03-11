@@ -1,0 +1,40 @@
+#!/bin/sh
+#
+# PROVIDE: openclaw_local_boot
+# REQUIRE: LOGIN
+# BEFORE: openclaw_gateway
+# KEYWORD: shutdown
+#
+
+. /etc/rc.subr
+
+name="openclaw_local_boot"
+rcvar="${name}_enable"
+
+load_rc_config "${name}"
+
+: "${openclaw_local_boot_enable:=NO}"
+: "${openclaw_local_boot_script:=/usr/local/etc/openclaw/boot-local.sh}"
+
+start_cmd="${name}_start"
+stop_cmd=":"
+
+openclaw_local_boot_start()
+{
+	if [ ! -f "${openclaw_local_boot_script}" ]; then
+		echo "${name}: ${openclaw_local_boot_script} missing optional hook script; skipping."
+		return 0
+	fi
+
+	echo "${name}: running local boot hook: ${openclaw_local_boot_script}"
+	/bin/sh "${openclaw_local_boot_script}"
+	rc=$?
+	if [ "${rc}" -ne 0 ]; then
+		echo "${name}: local boot hook failed: ${openclaw_local_boot_script} (exit ${rc})" >&2
+		return "${rc}"
+	fi
+
+	return 0
+}
+
+run_rc_command "$1"

@@ -919,8 +919,25 @@ ensure_searxng_started_after_deploy() {
   return 0
 }
 
+ensure_local_boot_hook_started_after_deploy() {
+  if bastille cmd "${JAIL_NAME}" service openclaw_local_boot start >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "error: openclaw_local_boot failed after deploy; aborting." >&2
+  echo "  bastille cmd ${JAIL_NAME} service openclaw_local_boot start" >&2
+  return 1
+}
+
 if ! apply_template; then
   echo "warning: bastille template failed; cleaning up incomplete jail" >&2
+  destroy_jail
+  cleanup_vnet_ifaces
+  exit 1
+fi
+
+if ! ensure_local_boot_hook_started_after_deploy; then
+  echo "warning: deploy-time local boot hook failed; cleaning up incomplete jail" >&2
   destroy_jail
   cleanup_vnet_ifaces
   exit 1
