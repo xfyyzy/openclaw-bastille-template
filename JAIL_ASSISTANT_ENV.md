@@ -25,6 +25,11 @@
   - `XDG_CONFIG_HOME=/var/db/openclaw/state/xdg/config`
   - `XDG_CACHE_HOME=/var/db/openclaw/state/xdg/cache`
   - `XDG_STATE_HOME=/var/db/openclaw/state/xdg/state`
+- Rust 状态根：
+  - `CARGO_HOME=/var/db/openclaw/state/cargo`
+  - `RUSTUP_HOME=/var/db/openclaw/state/rustup`
+  - `SCCACHE_DIR=/var/db/openclaw/state/sccache`
+  - `PATH` 默认前置 `${CARGO_HOME}/bin`
 - 统一 legacy HOME 状态根：`/var/db/openclaw/state/home`
   - root profile: `/var/db/openclaw/state/home/root`
   - openclaw profile: `/var/db/openclaw/state/home/openclaw`
@@ -124,6 +129,9 @@
 - 模板为“有状态 CLI”提供统一 XDG 基线（非工具特例）：
   - `openclaw_gateway` 服务进程与 `openclaw` wrapper 统一导出 `XDG_CONFIG_HOME/XDG_CACHE_HOME/XDG_STATE_HOME` 到 `/var/db/openclaw/state/xdg/*`。
   - 对于遵循 XDG 的工具（如 `gh`），认证与配置会默认落在持久化 state 下，jail 重建后可复用。
+- 模板为 Rust 工具链提供统一状态基线（非工具特例）：
+  - `openclaw_gateway` 与 `openclaw` wrapper 统一导出 `CARGO_HOME/RUSTUP_HOME/SCCACHE_DIR` 到 `/var/db/openclaw/state/{cargo,rustup,sccache}`，并前置 `${CARGO_HOME}/bin` 到 `PATH`。
+  - 该基线只负责稳定路径与环境，不把 toolchain/targets/components 固化在模板层。
 - 模板为“不遵循 XDG 的 HOME 路径”提供统一 legacy HOME 基线（非工具特例）：
   - helper: `/usr/local/libexec/openclaw/prepare-stateful-home.sh`
   - 按 `/usr/local/etc/openclaw/legacy-home-paths.conf` 声明式清单，把非 XDG 路径（如 `.ssh`、`.gnupg`、`.gitconfig`）链接到 `/var/db/openclaw/state/home/{profile}`。

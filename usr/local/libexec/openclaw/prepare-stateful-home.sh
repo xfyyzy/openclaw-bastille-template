@@ -6,7 +6,7 @@ profile="${2:-}"
 state_dir="${OPENCLAW_STATE_DIR:-/var/db/openclaw/state}"
 legacy_paths_config='/usr/local/etc/openclaw/legacy-home-paths.conf'
 
-legacy_home_dir_paths='.ssh .gnupg .kube .terraform.d .m2 .gradle .cargo .rustup .npm'
+legacy_home_dir_paths='.ssh .gnupg .kube .terraform.d .m2 .gradle .npm'
 legacy_home_file_paths='.gitconfig .fetchrc .sh_history'
 
 if [ -z "${runtime_home}" ] || [ -z "${profile}" ]; then

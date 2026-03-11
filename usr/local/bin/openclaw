@@ -9,6 +9,10 @@ export OPENCLAW_CONTEXT_REPO_DIR='${OPENCLAW_CONTEXT_REPO_DIR}'
 export XDG_CONFIG_HOME='${OPENCLAW_STATE_DIR}/xdg/config'
 export XDG_CACHE_HOME='${OPENCLAW_STATE_DIR}/xdg/cache'
 export XDG_STATE_HOME='${OPENCLAW_STATE_DIR}/xdg/state'
+export CARGO_HOME='${OPENCLAW_STATE_DIR}/cargo'
+export RUSTUP_HOME='${OPENCLAW_STATE_DIR}/rustup'
+export SCCACHE_DIR='${OPENCLAW_STATE_DIR}/sccache'
+export PATH="${CARGO_HOME}/bin:${PATH}"
 
 use_proxy='${USE_PROXY}'
 plugin_manifest='${OPENCLAW_STATE_DIR}/plugins.txt'
