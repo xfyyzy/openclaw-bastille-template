@@ -102,7 +102,7 @@ In `--deploy` mode, the script destroys any existing `openclaw` jail first, then
 
 Before running, make sure these host paths exist:
 
-- `/usr/local/poudriere/data/packages/150amd64-2026Q1` (or override `LOCAL_PKG_REPO`)
+- Local package repository directory configured by `LOCAL_PKG_REPO`
 - `/usr/local/etc/proxychains.conf` (or override `PROXYCHAINS_CONF_HOST`)
 
 ## Mirror presets and fallback
@@ -121,7 +121,7 @@ Mirror probe timeout knobs are configurable via `MIRROR_PROBE_CONNECT_TIMEOUT` a
 
 This template installs OpenClaw from npm release artifacts only (`openclaw@latest` by default), using `npm`.
 This avoids FreeBSD source-build breakpoints while keeping deployment deterministic.
-`pkg` stage follows `PKG_SOURCE` policy (default is local poudriere), while npm artifact download still requires npm registry/network access.
+`pkg` stage follows `PKG_SOURCE` policy (default is local package repository mode), while npm artifact download still requires npm registry/network access.
 
 ## Why npm instead of pnpm
 
@@ -393,13 +393,12 @@ Proxy behavior:
 ## pkg policy
 
 - Package source is controlled by `PKG_SOURCE`: `local`, `remote`, `mixed`, `mirror`, `mixed-mirror`.
-- `local`/`mixed`/`mixed-mirror` use the host-mounted poudriere repo at `/mnt/poudriere`.
+- `local`/`mixed`/`mixed-mirror` use a host-mounted local package repository inside the jail.
 - `mirror`/`mixed-mirror` can use `PKG_MIRROR_PRESET` + `PKG_MIRROR_FALLBACKS`; preflight picks a healthy mirror before deployment.
 - Bootstrap package set stays unchanged (`pkg`, `proxychains-ng` when enabled, `python`, `node`) regardless of source mode.
 - Single source of truth: `pkglist/openclaw-2026Q1.pkglist` (pure origins, one per line).
-- Poudriere consumes that file directly.
 - `openclaw-jailctl.sh` reads the same file and derives build/runtime origins by excluding bootstrap origins (`ports-mgmt/pkg net/proxychains-ng lang/python311 www/node25` by default; override with `BOOTSTRAP_ORIGINS`).
-- `bootstrap-pkg.sh` installs conflict-prone browser/graphics origins (`graphics/ImageMagick7 graphics/vips www/chromium www/firefox`) in a separate phase and prints per-origin dry-run replacement details before applying.
+- `bootstrap-pkg.sh` installs conflict-prone browser/graphics origins (`graphics/ImageMagick7 graphics/vips www/chromium www/firefox`) in a separate phase using one batched dry-run/apply transaction; if that batch fails, it prints grouped conflict-chain summaries and reverse-dependency diagnostics (from `pkg info -r`) before exiting.
 - A post-install consistency check verifies both bootstrap origins and every derived build origin are installed (using `pkg query '%o'` with flavor suffix normalization). If build origins are missing, bootstrap retries each missing origin individually with dry-run replacement logs before the final strict check; deployment fails if any required origin remains missing.
 - Curated jail context snapshot is copied to `OPENCLAW_CONTEXT_SNAPSHOT_DIR` (default `/usr/local/share/openclaw/context/template-snapshot`) and currently contains `JAIL_ASSISTANT_ENV.md`, `Bastillefile`, and `pkglist/`.
 - Runtime installed package state should be queried directly in jail (for example: `pkg query '%o %n %v' | sort`).

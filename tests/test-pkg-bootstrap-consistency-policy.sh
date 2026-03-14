@@ -14,8 +14,28 @@ if ! rg -n --fixed-strings "phase2_conflict_origins='graphics/ImageMagick7 graph
   fail "missing conflict-prone browser/graphics origin split list in bootstrap-pkg.sh"
 fi
 
-if ! rg -n --fixed-strings 'maybe_proxy "${pkg_cmd}" install -yn "${_origin}"' "${BOOTSTRAP_SCRIPT}" >/dev/null 2>&1; then
-  fail "missing dry-run install step for conflict-prone origins in bootstrap-pkg.sh"
+if ! rg -n --fixed-strings 'maybe_proxy "${pkg_cmd}" install -yn ${phase2_build_origins}' "${BOOTSTRAP_SCRIPT}" >/dev/null 2>&1; then
+  fail "missing batch dry-run install step for conflict-prone origins in bootstrap-pkg.sh"
+fi
+
+if ! rg -n --fixed-strings 'maybe_proxy "${pkg_cmd}" install -y ${phase2_build_origins}' "${BOOTSTRAP_SCRIPT}" >/dev/null 2>&1; then
+  fail "missing batch apply install step for conflict-prone origins in bootstrap-pkg.sh"
+fi
+
+if rg -n --fixed-strings 'phase 3: dry-run ${_origin} to show conflict/replacement details' "${BOOTSTRAP_SCRIPT}" >/dev/null 2>&1; then
+  fail "phase 3 should not dry-run conflict-prone origins one by one"
+fi
+
+if ! rg -n --fixed-strings 'summarize_conflict_chain_from_log()' "${BOOTSTRAP_SCRIPT}" >/dev/null 2>&1; then
+  fail "missing conflict-chain summary parser in bootstrap-pkg.sh"
+fi
+
+if ! rg -n --fixed-strings 'phase 3: conflict chain summary for' "${BOOTSTRAP_SCRIPT}" >/dev/null 2>&1; then
+  fail "missing grouped conflict-chain summary output in bootstrap-pkg.sh"
+fi
+
+if ! rg -n --fixed-strings 'maybe_proxy "${pkg_cmd}" info -r "${_pkg}"' "${BOOTSTRAP_SCRIPT}" >/dev/null 2>&1; then
+  fail "missing reverse-dependency summary command for conflict packages in bootstrap-pkg.sh"
 fi
 
 if ! rg -n --fixed-strings "pkg install consistency check failed: missing origins after install (" "${BOOTSTRAP_SCRIPT}" >/dev/null 2>&1; then
@@ -42,8 +62,8 @@ if ! rg -n --fixed-strings "phase 4: retrying missing build origins individually
   fail "missing per-origin retry path for missing build origins in bootstrap-pkg.sh"
 fi
 
-if ! rg -n --fixed-strings "conflict-prone browser/graphics origins" "${README_DOC}" >/dev/null 2>&1; then
-  fail "missing conflict-prone browser/graphics note in README.md"
+if ! rg -n --fixed-strings "installs conflict-prone browser/graphics origins" "${README_DOC}" >/dev/null 2>&1; then
+  fail "missing conflict-prone browser/graphics install note in README.md"
 fi
 
 if ! rg -n --fixed-strings "consistency check verifies both bootstrap origins and every derived build origin are installed" "${README_DOC}" >/dev/null 2>&1; then
