@@ -259,10 +259,12 @@ if [ "${enable_local_embeddings}" = "yes" ]; then
   if [ -n "${openclaw_cmd}" ]; then
     echo "Prewarming local memory embeddings via openclaw memory status --deep..."
     if ! maybe_proxy "${openclaw_cmd}" memory status --deep; then
-      echo "warning: memory prewarm failed (non-fatal); continuing deploy." >&2
+      echo "error: memory prewarm failed; aborting deploy." >&2
+      exit 1
     fi
   else
-    echo "warning: openclaw command not found; skipping memory prewarm (non-fatal)." >&2
+    echo "error: openclaw command not found; cannot prewarm memory embeddings." >&2
+    exit 1
   fi
 fi
 

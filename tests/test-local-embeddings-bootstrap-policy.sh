@@ -53,8 +53,12 @@ if ! rg -n --fixed-strings 'maybe_proxy "${openclaw_cmd}" memory status --deep' 
   fail "missing deploy-time memory prewarm command in install script"
 fi
 
-if ! rg -n --fixed-strings 'warning: memory prewarm failed (non-fatal); continuing deploy.' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then
-  fail "missing non-fatal deploy-time prewarm warning path"
+if ! rg -n --fixed-strings 'error: memory prewarm failed; aborting deploy.' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then
+  fail "missing fatal deploy-time prewarm error path"
+fi
+
+if rg -n --fixed-strings 'memory prewarm failed (non-fatal)' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then
+  fail "deploy-time prewarm must not be non-fatal"
 fi
 
 echo "PASS: local embeddings bootstrap wiring detected"

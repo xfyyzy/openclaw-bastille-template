@@ -158,7 +158,7 @@ When enabled, deploy/rebuild path runs one best-effort prewarm probe:
 
 - `openclaw memory status --deep`
 
-Prewarm failures are logged as non-fatal warnings so deploy can continue.
+Prewarm failures are treated as deploy errors and abort template apply.
 
 Template runtime pins `node-gyp` and `node-addon-api` as direct dependencies so `sharp` source-build can resolve them during install.
 Installer exports `PYTHON`/`npm_config_python` to the detected Python executable so node-gyp does not depend on `python3`/`python` alias names.
