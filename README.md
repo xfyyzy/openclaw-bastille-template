@@ -382,5 +382,7 @@ Proxy behavior:
 - Single source of truth: `pkglist/openclaw-2026Q1.pkglist` (pure origins, one per line).
 - Poudriere consumes that file directly.
 - `openclaw-jailctl.sh` reads the same file and derives build/runtime origins by excluding bootstrap origins (`ports-mgmt/pkg net/proxychains-ng lang/python311 www/node25` by default; override with `BOOTSTRAP_ORIGINS`).
+- `bootstrap-pkg.sh` installs conflict-prone browser/graphics origins (`graphics/ImageMagick7 graphics/vips www/chromium www/firefox`) in a separate phase and prints per-origin dry-run replacement details before applying.
+- A post-install consistency check verifies both bootstrap origins and every derived build origin are installed (using `pkg query '%o'` with flavor suffix normalization). If build origins are missing, bootstrap retries each missing origin individually with dry-run replacement logs before the final strict check; deployment fails if any required origin remains missing.
 - Curated jail context snapshot is copied to `OPENCLAW_CONTEXT_SNAPSHOT_DIR` (default `/usr/local/share/openclaw/context/template-snapshot`) and currently contains `JAIL_ASSISTANT_ENV.md`, `Bastillefile`, and `pkglist/`.
 - Runtime installed package state should be queried directly in jail (for example: `pkg query '%o %n %v' | sort`).

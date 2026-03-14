@@ -28,6 +28,132 @@ maybe_proxy() {
   fi
 }
 
+trim_words() {
+  printf '%s' "$1" | awk '{$1=$1; print}'
+}
+
+origin_in_set() {
+  _needle="$1"
+  _origins_set="$2"
+
+  for _origin in ${_origins_set}; do
+    if [ "${_origin}" = "${_needle}" ]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+split_build_origins() {
+  _phase2_set="$1"
+
+  phase1_build_origins=''
+  phase2_build_origins=''
+
+  for _origin in ${build_origins}; do
+    if origin_in_set "${_origin}" "${_phase2_set}"; then
+      phase2_build_origins="${phase2_build_origins} ${_origin}"
+    else
+      phase1_build_origins="${phase1_build_origins} ${_origin}"
+    fi
+  done
+
+  phase1_build_origins=$(trim_words "${phase1_build_origins}")
+  phase2_build_origins=$(trim_words "${phase2_build_origins}")
+}
+
+install_conflict_prone_origins() {
+  if [ -z "${phase2_build_origins}" ]; then
+    return 0
+  fi
+
+  echo "phase 3: installing conflict-prone browser/graphics origins"
+
+  for _origin in ${phase2_build_origins}; do
+    echo "phase 3: dry-run ${_origin} to show conflict/replacement details"
+    maybe_proxy "${pkg_cmd}" install -yn "${_origin}"
+
+    echo "phase 3: apply ${_origin}"
+    maybe_proxy "${pkg_cmd}" install -y "${_origin}"
+  done
+}
+
+missing_origins_for_set() {
+  _required_origins="$1"
+  _need_file=$(mktemp -t openclaw-build-need.XXXXXX)
+  _have_file=$(mktemp -t openclaw-build-have.XXXXXX)
+  _missing_file=$(mktemp -t openclaw-build-missing.XXXXXX)
+
+  # shellcheck disable=SC2086
+  printf '%s\n' ${_required_origins} | awk 'NF { print $1 }' | sort -u > "${_need_file}"
+  maybe_proxy "${pkg_cmd}" query -a '%o' | sed 's/@.*$//' | sort -u > "${_have_file}"
+  comm -23 "${_need_file}" "${_have_file}" > "${_missing_file}" || true
+  cat "${_missing_file}"
+  rm -f "${_need_file}" "${_have_file}" "${_missing_file}"
+}
+
+verify_required_origins_installed() {
+  _required_origins="$1"
+  _label="$2"
+
+  if [ -z "${_required_origins}" ]; then
+    return 0
+  fi
+
+  _missing_origins=$(missing_origins_for_set "${_required_origins}")
+  if [ -n "${_missing_origins}" ]; then
+    echo "pkg install consistency check failed: missing origins after install (${_label}):" >&2
+    printf '%s\n' "${_missing_origins}" >&2
+    return 1
+  fi
+
+  echo "pkg install consistency check passed: all ${_label} installed"
+  return 0
+}
+
+retry_missing_build_origins_individually() {
+  if [ -z "${build_origins}" ]; then
+    return 0
+  fi
+
+  _missing_build_origins=$(missing_origins_for_set "${build_origins}")
+  if [ -z "${_missing_build_origins}" ]; then
+    return 0
+  fi
+
+  echo "phase 4: retrying missing build origins individually"
+  for _origin in ${_missing_build_origins}; do
+    echo "phase 4: dry-run ${_origin} to show conflict/replacement details"
+    maybe_proxy "${pkg_cmd}" install -yn "${_origin}"
+
+    echo "phase 4: apply ${_origin}"
+    maybe_proxy "${pkg_cmd}" install -y "${_origin}"
+  done
+}
+
+verify_expected_origins_installed() {
+  if ! verify_required_origins_installed "${bootstrap_origins}" "bootstrap origins"; then
+    exit 1
+  fi
+
+  if verify_required_origins_installed "${build_origins}" "build origins"; then
+    return 0
+  fi
+
+  retry_missing_build_origins_individually
+
+  if ! verify_required_origins_installed "${bootstrap_origins}" "bootstrap origins"; then
+    exit 1
+  fi
+
+  if ! verify_required_origins_installed "${build_origins}" "build origins"; then
+    exit 1
+  fi
+
+  return 0
+}
+
 # Write mirror repo config to the override directory.
 # pkg(7) variables ${ABI} and ${VERSION_MINOR} are expanded by pkg at runtime.
 write_mirror_conf() {
@@ -200,6 +326,15 @@ fi
 maybe_proxy "${pkg_cmd}" update -f
 
 if [ -n "${build_origins}" ]; then
-  # shellcheck disable=SC2086
-  maybe_proxy "${pkg_cmd}" install -y ${build_origins}
+  phase2_conflict_origins='graphics/ImageMagick7 graphics/vips www/chromium www/firefox'
+  split_build_origins "${phase2_conflict_origins}"
+
+  if [ -n "${phase1_build_origins}" ]; then
+    echo "phase 2: installing baseline build origins"
+    # shellcheck disable=SC2086
+    maybe_proxy "${pkg_cmd}" install -y ${phase1_build_origins}
+  fi
+
+  install_conflict_prone_origins
+  verify_expected_origins_installed
 fi
