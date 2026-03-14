@@ -45,6 +45,7 @@ missing_origins_for_set() {
 verify_required_origins_installed() {
   _required_origins="$1"
   _label="$2"
+  _mode="${3:-strict}"
 
   if [ -z "${_required_origins}" ]; then
     return 0
@@ -52,7 +53,11 @@ verify_required_origins_installed() {
 
   _missing_origins=$(missing_origins_for_set "${_required_origins}")
   if [ -n "${_missing_origins}" ]; then
-    echo "pkg install consistency check failed: missing origins after install (${_label}):" >&2
+    if [ "${_mode}" = "warning" ]; then
+      echo "warning: pkg install consistency check missing origins after install (${_label}):" >&2
+    else
+      echo "pkg install consistency check failed: missing origins after install (${_label}):" >&2
+    fi
     printf '%s\n' "${_missing_origins}" >&2
     return 1
   fi
@@ -66,8 +71,8 @@ verify_expected_origins_installed() {
     exit 1
   fi
 
-  if ! verify_required_origins_installed "${build_origins}" "build origins"; then
-    exit 1
+  if ! verify_required_origins_installed "${build_origins}" "build origins" "warning"; then
+    echo "warning: continuing deploy despite missing build origins after install consistency check" >&2
   fi
 
   return 0

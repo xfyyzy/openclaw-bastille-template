@@ -52,12 +52,24 @@ if ! rg -n --fixed-strings 'verify_required_origins_installed "${bootstrap_origi
   fail "missing bootstrap-origin consistency guard in bootstrap-pkg.sh"
 fi
 
+if ! rg -n --fixed-strings 'verify_required_origins_installed "${build_origins}" "build origins" "warning"' "${BOOTSTRAP_SCRIPT}" >/dev/null 2>&1; then
+  fail "missing warning-mode consistency check for build origins in bootstrap-pkg.sh"
+fi
+
+if ! rg -n --fixed-strings 'warning: pkg install consistency check missing origins after install (${_label}):' "${BOOTSTRAP_SCRIPT}" >/dev/null 2>&1; then
+  fail "missing warning-only consistency message for build origins in bootstrap-pkg.sh"
+fi
+
+if ! rg -n --fixed-strings 'warning: continuing deploy despite missing build origins after install consistency check' "${BOOTSTRAP_SCRIPT}" >/dev/null 2>&1; then
+  fail "missing explicit continue-deploy warning for missing build origins in bootstrap-pkg.sh"
+fi
+
 if ! rg -n --fixed-strings 'installs all derived build/runtime origins in one batch transaction' "${README_DOC}" >/dev/null 2>&1; then
   fail "missing one-shot batch-install policy note in README.md"
 fi
 
-if ! rg -n --fixed-strings 'deployment fails immediately if batch install or consistency checks fail' "${README_DOC}" >/dev/null 2>&1; then
-  fail "missing immediate-failure policy note in README.md"
+if ! rg -n --fixed-strings 'bootstrap-origin mismatch is fatal, while missing build origins are warning-only and deployment continues' "${README_DOC}" >/dev/null 2>&1; then
+  fail "missing build-origin warning policy note in README.md"
 fi
 
 if rg -n --fixed-strings 'conflict-prone browser/graphics origins' "${README_DOC}" >/dev/null 2>&1; then
@@ -68,4 +80,4 @@ if rg -n --fixed-strings 'retries each missing origin individually' "${README_DO
   fail "README.md still mentions deprecated per-origin retry policy"
 fi
 
-echo "PASS: pkg bootstrap one-shot batch install + strict consistency policy detected"
+echo "PASS: pkg bootstrap one-shot batch install + warning-only build-origin consistency policy detected"
