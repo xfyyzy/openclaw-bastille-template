@@ -28,182 +28,6 @@ maybe_proxy() {
   fi
 }
 
-trim_words() {
-  printf '%s' "$1" | awk '{$1=$1; print}'
-}
-
-origin_in_set() {
-  _needle="$1"
-  _origins_set="$2"
-
-  for _origin in ${_origins_set}; do
-    if [ "${_origin}" = "${_needle}" ]; then
-      return 0
-    fi
-  done
-
-  return 1
-}
-
-split_build_origins() {
-  _phase2_set="$1"
-
-  phase1_build_origins=''
-  phase2_build_origins=''
-
-  for _origin in ${build_origins}; do
-    if origin_in_set "${_origin}" "${_phase2_set}"; then
-      phase2_build_origins="${phase2_build_origins} ${_origin}"
-    else
-      phase1_build_origins="${phase1_build_origins} ${_origin}"
-    fi
-  done
-
-  phase1_build_origins=$(trim_words "${phase1_build_origins}")
-  phase2_build_origins=$(trim_words "${phase2_build_origins}")
-}
-
-install_conflict_prone_origins() {
-  if [ -z "${phase2_build_origins}" ]; then
-    return 0
-  fi
-
-  echo "phase 3: installing conflict-prone browser/graphics origins as one transaction"
-  echo "phase 3: dry-run all conflict-prone origins to show conflict/replacement details"
-  # shellcheck disable=SC2086
-  maybe_proxy "${pkg_cmd}" install -yn ${phase2_build_origins}
-
-  echo "phase 3: apply all conflict-prone origins in one transaction"
-  _batch_apply_log=$(mktemp -t openclaw-phase3-batch.XXXXXX)
-  # shellcheck disable=SC2086
-  if maybe_proxy "${pkg_cmd}" install -y ${phase2_build_origins} >"${_batch_apply_log}" 2>&1; then
-    cat "${_batch_apply_log}"
-    rm -f "${_batch_apply_log}"
-    return 0
-  fi
-
-  cat "${_batch_apply_log}" >&2
-
-  if ! summarize_conflict_chain_from_log "batch install (-y)" "${_batch_apply_log}" >&2; then
-    echo "phase 3: failed to parse conflict chain summary from batch install output" >&2
-  fi
-  print_reverse_dependency_summary_from_log "${_batch_apply_log}"
-
-  echo "phase 3: batch install failed; collecting per-origin dry-run diagnostics" >&2
-  for _origin in ${phase2_build_origins}; do
-    echo "phase 3: diagnostic dry-run ${_origin}" >&2
-    _origin_diag_log=$(mktemp -t openclaw-phase3-origin.XXXXXX)
-    maybe_proxy "${pkg_cmd}" install -yn "${_origin}" >"${_origin_diag_log}" 2>&1 || true
-    cat "${_origin_diag_log}" >&2
-
-    if ! summarize_conflict_chain_from_log "dry-run ${_origin}" "${_origin_diag_log}" >&2; then
-      echo "phase 3: no conflicts detected in diagnostic dry-run ${_origin}" >&2
-    fi
-    print_reverse_dependency_summary_from_log "${_origin_diag_log}"
-    rm -f "${_origin_diag_log}"
-  done
-  rm -f "${_batch_apply_log}"
-  return 1
-}
-
-summarize_conflict_chain_from_log() {
-  _group_label="$1"
-  _log_file="$2"
-
-  awk -v group_label="${_group_label}" '
-    BEGIN {
-      current_pkg = "(unknown)"
-      current_conflict_group = ""
-      found = 0
-    }
-
-    {
-      if (match($0, /Installing[[:space:]]+([^[:space:]]+)\.\.\./, m)) {
-        current_pkg = m[1]
-      }
-
-      if (match($0, /^pkg:[[:space:]]+([^[:space:]]+)[[:space:]]+conflicts with[[:space:]]+([^[:space:]]+)/, m)) {
-        found = 1
-        if (!(current_pkg in seen_group)) {
-          seen_group[current_pkg] = 1
-          order[++order_count] = current_pkg
-        }
-        details[current_pkg] = details[current_pkg] sprintf("    - %s conflicts with %s\n", m[1], m[2])
-        current_conflict_group = current_pkg
-        next
-      }
-
-      if (match($0, /^pkg:[[:space:]]+Cannot install package[[:space:]]+([^,]+),[[:space:]]+conflicting package[[:space:]]+([^[:space:]]+)[[:space:]]+installed/, m)) {
-        found = 1
-        if (!(current_pkg in seen_group)) {
-          seen_group[current_pkg] = 1
-          order[++order_count] = current_pkg
-        }
-        details[current_pkg] = details[current_pkg] sprintf("    - %s conflicts with installed %s\n", m[1], m[2])
-        current_conflict_group = current_pkg
-        next
-      }
-
-      if (match($0, /^pkg:[[:space:]]+Problematic file:[[:space:]]+(.+)$/, m) && current_conflict_group != "") {
-        found = 1
-        details[current_conflict_group] = details[current_conflict_group] sprintf("      problematic file: %s\n", m[1])
-      }
-    }
-
-    END {
-      if (!found) {
-        exit 1
-      }
-
-      printf("phase 3: conflict chain summary for %s\n", group_label)
-      for (i = 1; i <= order_count; i++) {
-        pkg = order[i]
-        printf("  [%s]\n", pkg)
-        printf("%s", details[pkg])
-      }
-    }
-  ' "${_log_file}"
-}
-
-extract_conflict_packages_from_log() {
-  _log_file="$1"
-
-  awk '
-    match($0, /^pkg:[[:space:]]+([^[:space:]]+)[[:space:]]+conflicts with[[:space:]]+([^[:space:]]+)/, m) {
-      print m[1]
-      print m[2]
-      next
-    }
-    match($0, /^pkg:[[:space:]]+Cannot install package[[:space:]]+([^,]+),[[:space:]]+conflicting package[[:space:]]+([^[:space:]]+)[[:space:]]+installed/, m) {
-      print m[1]
-      print m[2]
-    }
-  ' "${_log_file}" | sort -u
-}
-
-print_reverse_dependency_summary_from_log() {
-  _log_file="$1"
-  _pkg_list=$(extract_conflict_packages_from_log "${_log_file}" || true)
-
-  if [ -z "${_pkg_list}" ]; then
-    echo "phase 3: no conflict packages found for reverse-dependency summary" >&2
-    return 0
-  fi
-
-  echo "phase 3: reverse dependency summary for conflict packages" >&2
-  for _pkg in ${_pkg_list}; do
-    _revdeps_log=$(mktemp -t openclaw-pkg-revdeps.XXXXXX)
-    if maybe_proxy "${pkg_cmd}" info -r "${_pkg}" >"${_revdeps_log}" 2>&1; then
-      echo "  [${_pkg}]" >&2
-      sed 's/^/    /' "${_revdeps_log}" >&2
-    else
-      echo "  [${_pkg}] (no installed reverse-dependency info available)" >&2
-      sed 's/^/    /' "${_revdeps_log}" >&2
-    fi
-    rm -f "${_revdeps_log}"
-  done
-}
-
 missing_origins_for_set() {
   _required_origins="$1"
   _need_file=$(mktemp -t openclaw-build-need.XXXXXX)
@@ -237,37 +61,7 @@ verify_required_origins_installed() {
   return 0
 }
 
-retry_missing_build_origins_individually() {
-  if [ -z "${build_origins}" ]; then
-    return 0
-  fi
-
-  _missing_build_origins=$(missing_origins_for_set "${build_origins}")
-  if [ -z "${_missing_build_origins}" ]; then
-    return 0
-  fi
-
-  echo "phase 4: retrying missing build origins individually"
-  for _origin in ${_missing_build_origins}; do
-    echo "phase 4: dry-run ${_origin} to show conflict/replacement details"
-    maybe_proxy "${pkg_cmd}" install -yn "${_origin}"
-
-    echo "phase 4: apply ${_origin}"
-    maybe_proxy "${pkg_cmd}" install -y "${_origin}"
-  done
-}
-
 verify_expected_origins_installed() {
-  if ! verify_required_origins_installed "${bootstrap_origins}" "bootstrap origins"; then
-    exit 1
-  fi
-
-  if verify_required_origins_installed "${build_origins}" "build origins"; then
-    return 0
-  fi
-
-  retry_missing_build_origins_individually
-
   if ! verify_required_origins_installed "${bootstrap_origins}" "bootstrap origins"; then
     exit 1
   fi
@@ -451,15 +245,9 @@ fi
 maybe_proxy "${pkg_cmd}" update -f
 
 if [ -n "${build_origins}" ]; then
-  phase2_conflict_origins='graphics/ImageMagick7 graphics/vips www/chromium www/firefox'
-  split_build_origins "${phase2_conflict_origins}"
-
-  if [ -n "${phase1_build_origins}" ]; then
-    echo "phase 2: installing baseline build origins"
-    # shellcheck disable=SC2086
-    maybe_proxy "${pkg_cmd}" install -y ${phase1_build_origins}
-  fi
-
-  install_conflict_prone_origins
-  verify_expected_origins_installed
+  echo "phase 2: installing all build origins in a single transaction"
+  # shellcheck disable=SC2086
+  maybe_proxy "${pkg_cmd}" install -y ${build_origins}
 fi
+
+verify_expected_origins_installed
