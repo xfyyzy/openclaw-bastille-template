@@ -119,6 +119,7 @@ unset _release_major _host_arch _pkg_arch
 
 # OpenClaw
 : "${OPENCLAW_NPM_SPEC:=openclaw@latest}"
+: "${OPENCLAW_ENABLE_LOCAL_EMBEDDINGS:=yes}"
 
 # Package list file (empty = auto-detect)
 : "${PKGLIST_FILE:=}"

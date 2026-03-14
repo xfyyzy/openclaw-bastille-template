@@ -119,6 +119,11 @@
 # npm package specifier (version pinning example: openclaw@2026.2.26)
 #: "${OPENCLAW_NPM_SPEC:=openclaw@latest}"
 
+# Enable local memory embedding bootstrap during deploy.
+# yes (default): install/rebuild node-llama-cpp in OpenClaw runtime prefix.
+# no: skip local embedding bootstrap (use remote memory providers or custom hooks).
+#: "${OPENCLAW_ENABLE_LOCAL_EMBEDDINGS:=yes}"
+
 # Package list file (leave empty to auto-detect from pkglist/ directory)
 #: "${PKGLIST_FILE:=}"
 

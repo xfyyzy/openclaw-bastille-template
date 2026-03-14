@@ -143,8 +143,22 @@ scripts, then selectively runs `npm rebuild` for packages that need native compi
 - `protobufjs`
 - `sharp`
 
-All other packages (including `@discordjs/opus` and `node-llama-cpp`) have their
-build scripts suppressed.
+All other packages (including `@discordjs/opus`) have their build scripts
+suppressed.
+
+Local memory embedding bootstrap is controlled by
+`OPENCLAW_ENABLE_LOCAL_EMBEDDINGS` (default: `yes`):
+
+- `yes`: installer explicitly installs OpenClaw's optional
+  `node-llama-cpp` peer dependency into runtime prefix and adds it to
+  selective `npm rebuild`.
+- `no`: skips `node-llama-cpp` install/rebuild and local embedding prewarm.
+
+When enabled, deploy/rebuild path runs one best-effort prewarm probe:
+
+- `openclaw memory status --deep`
+
+Prewarm failures are logged as non-fatal warnings so deploy can continue.
 
 Template runtime pins `node-gyp` and `node-addon-api` as direct dependencies so `sharp` source-build can resolve them during install.
 Installer exports `PYTHON`/`npm_config_python` to the detected Python executable so node-gyp does not depend on `python3`/`python` alias names.
@@ -182,6 +196,9 @@ bastille cmd openclaw service openclaw_gateway init
 - On success, it writes init marker:
   - `/var/db/openclaw/state/.onboarded`
 - Later `init` calls are no-op by default; re-run onboarding only with `force-init`.
+
+Memory embedding prewarm is performed during deploy/install
+(`install-openclaw.sh`), not in `service openclaw_gateway init`.
 
 The template seeds `/usr/local/etc/openclaw/openclaw.json` on first install (only when the file is missing), with:
 

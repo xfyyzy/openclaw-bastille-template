@@ -16,11 +16,20 @@ prepare_stateful_home='/usr/local/libexec/openclaw/prepare-stateful-home.sh'
 searxng_settings_path='${OPENCLAW_ETC_DIR}/searxng.yml'
 use_proxy='${USE_PROXY}'
 python_bin='${PYTHON_BIN}'
+enable_local_embeddings='${OPENCLAW_ENABLE_LOCAL_EMBEDDINGS}'
 proxy_enabled='no'
 
 if [ "${use_proxy}" = "yes" ]; then
   proxy_enabled='yes'
 fi
+
+case "${enable_local_embeddings}" in
+  yes|no) ;;
+  *)
+    echo "OPENCLAW_ENABLE_LOCAL_EMBEDDINGS must be yes or no: ${enable_local_embeddings}" >&2
+    exit 1
+    ;;
+esac
 
 # Packages whose postinstall/build scripts are allowed to run.
 # All other packages have their scripts suppressed via --ignore-scripts.
@@ -75,6 +84,17 @@ if [ -z "${npm_cmd}" ]; then
   exit 1
 fi
 
+openclaw_cmd=''
+for candidate in /usr/local/bin/openclaw openclaw; do
+  if command -v "${candidate}" >/dev/null 2>&1; then
+    openclaw_cmd=$(command -v "${candidate}")
+    break
+  elif [ -x "${candidate}" ]; then
+    openclaw_cmd="${candidate}"
+    break
+  fi
+done
+
 python_cmd=''
 for candidate in "/usr/local/bin/${python_bin}" /usr/local/bin/python3 "${python_bin}" python3 python; do
   if command -v "${candidate}" >/dev/null 2>&1; then
@@ -119,14 +139,27 @@ JSON
 # This replaces pnpm's onlyBuiltDependencies with an equivalent two-step approach.
 maybe_proxy "${npm_cmd}" install --prefix "${install_root}" --omit=dev --ignore-scripts "${openclaw_npm_spec}"
 
-# shellcheck disable=SC2086
-"${npm_cmd}" rebuild --prefix "${install_root}" ${rebuild_pkgs}
-
 package_root="${install_root}/node_modules/openclaw"
 if [ ! -f "${package_root}/openclaw.mjs" ]; then
   echo "openclaw entrypoint not found after npm install: ${package_root}/openclaw.mjs" >&2
   exit 1
 fi
+
+if [ "${enable_local_embeddings}" = "yes" ]; then
+  node_llama_spec="$("${node_cmd}" -e '
+    const pkg = require(process.argv[1]);
+    const spec = pkg?.peerDependencies?.["node-llama-cpp"];
+    process.stdout.write(spec ? `node-llama-cpp@${spec}` : "node-llama-cpp");
+  ' "${package_root}/package.json")"
+  echo "installing optional local embedding dependency: ${node_llama_spec}"
+  maybe_proxy "${npm_cmd}" install --prefix "${install_root}" --omit=dev "${node_llama_spec}"
+  rebuild_pkgs="${rebuild_pkgs} node-llama-cpp"
+else
+  echo "skipping optional local embedding dependency bootstrap (OPENCLAW_ENABLE_LOCAL_EMBEDDINGS=${enable_local_embeddings})"
+fi
+
+# shellcheck disable=SC2086
+"${npm_cmd}" rebuild --prefix "${install_root}" ${rebuild_pkgs}
 
 version="$("${node_cmd}" -e 'process.stdout.write(require(process.argv[1]).version)' "${package_root}/package.json")"
 printf '%s\n' "${version}" > "${install_root}/.openclaw-version"
@@ -221,6 +254,17 @@ fi
 
 OPENCLAW_STATE_DIR="${state_dir}" "${prepare_stateful_home}" /root root
 OPENCLAW_STATE_DIR="${state_dir}" "${prepare_stateful_home}" "${db_dir}" openclaw
+
+if [ "${enable_local_embeddings}" = "yes" ]; then
+  if [ -n "${openclaw_cmd}" ]; then
+    echo "Prewarming local memory embeddings via openclaw memory status --deep..."
+    if ! maybe_proxy "${openclaw_cmd}" memory status --deep; then
+      echo "warning: memory prewarm failed (non-fatal); continuing deploy." >&2
+    fi
+  else
+    echo "warning: openclaw command not found; skipping memory prewarm (non-fatal)." >&2
+  fi
+fi
 
 if [ ! -s "${searxng_settings_path}" ]; then
   searxng_secret="$("${python_cmd}" -c 'import secrets; print(secrets.token_hex(32))')"

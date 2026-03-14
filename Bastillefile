@@ -8,6 +8,7 @@ ARG LOCAL_PKG_REPO=/usr/local/poudriere/data/packages/150amd64-2026Q1
 ARG PKG_MIRROR_URL=
 ARG PROXYCHAINS_CONF_HOST=/usr/local/etc/proxychains.conf
 ARG OPENCLAW_NPM_SPEC=openclaw@latest
+ARG OPENCLAW_ENABLE_LOCAL_EMBEDDINGS=yes
 ARG OPENCLAW_ETC_DIR=/usr/local/etc/openclaw
 ARG OPENCLAW_DB_DIR=/var/db/openclaw
 ARG OPENCLAW_STATE_DIR=/var/db/openclaw/state
