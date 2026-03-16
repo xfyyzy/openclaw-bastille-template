@@ -26,6 +26,10 @@ if ! rg -n --fixed-strings 'error: sqlite-vec source build failed; aborting depl
   fail "missing fatal sqlite-vec source build failure path"
 fi
 
+if ! rg -n --fixed-strings -- '-include sys/types.h' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then
+  fail "missing sys/types.h compatibility include for sqlite-vec freebsd typedefs"
+fi
+
 if ! rg -n --fixed-strings 'Configured sqlite-vec extensionPath for memory search:' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then
   fail "missing config extensionPath wiring log line"
 fi

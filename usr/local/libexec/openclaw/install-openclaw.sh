@@ -270,6 +270,7 @@ if [ "${enable_local_embeddings}" = "yes" ]; then
     mv "${sqlite_vec_generated_header_tmp}" "${sqlite_vec_generated_header}"
 
     if ! "${cc_cmd}" -fPIC -shared -Wall -Wextra -O3 \
+      -include sys/types.h \
       -I/usr/local/include \
       -I"${sqlite_vec_src_dir}" \
       -I"${sqlite_vec_src_dir}/vendor" \
