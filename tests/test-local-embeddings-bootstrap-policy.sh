@@ -65,6 +65,14 @@ if ! rg -n --fixed-strings 'strict local memory prewarm validation failed; abort
   fail "missing strict local prewarm semantic validation failure path"
 fi
 
+if ! rg -n --fixed-strings 'const normalized = raw.replace(/\r/g, "\n");' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then
+  fail "missing noisy-output normalization before memory status JSON parse"
+fi
+
+if ! rg -n --fixed-strings 'for (let i = 0; i < normalized.length; i++) {' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then
+  fail "missing fallback scan for embedded JSON payload in prewarm output"
+fi
+
 if ! rg -n --fixed-strings 'error: memory prewarm failed; aborting deploy.' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then
   fail "missing fatal deploy-time prewarm error path"
 fi

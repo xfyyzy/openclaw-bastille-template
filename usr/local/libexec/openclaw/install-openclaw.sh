@@ -451,11 +451,48 @@ if [ "${enable_local_embeddings}" = "yes" ]; then
     if ! "${node_cmd}" -e '
       const fs = require("fs");
       const p = process.argv[1];
-      let status;
-      try {
-        status = JSON.parse(fs.readFileSync(p, "utf8"));
-      } catch (err) {
-        console.error("prewarm check: unable to parse memory status JSON:", String(err));
+      const raw = fs.readFileSync(p, "utf8");
+      const normalized = raw.replace(/\r/g, "\n");
+      const tryParse = (text) => {
+        try {
+          return JSON.parse(text);
+        } catch {
+          return null;
+        }
+      };
+      let status = tryParse(normalized.trim());
+      if (status === null) {
+        // Some builds still emit spinner/progress chars to stdout with --json.
+        const deansi = normalized.replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, "");
+        status = tryParse(deansi.trim());
+      }
+      if (status === null) {
+        for (let i = 0; i < normalized.length; i++) {
+          const start = normalized[i];
+          if (start !== "[" && start !== "{") {
+            continue;
+          }
+          for (let j = normalized.length; j > i; j--) {
+            const end = normalized[j - 1];
+            if ((start === "[" && end !== "]") || (start === "{" && end !== "}")) {
+              continue;
+            }
+            const candidate = normalized.slice(i, j).trim();
+            if (!candidate) {
+              continue;
+            }
+            status = tryParse(candidate);
+            if (status !== null) {
+              break;
+            }
+          }
+          if (status !== null) {
+            break;
+          }
+        }
+      }
+      if (status === null) {
+        console.error("prewarm check: unable to parse memory status JSON: no valid JSON payload found in command output.");
         process.exit(1);
       }
       if (!Array.isArray(status) || status.length === 0) {
