@@ -157,6 +157,12 @@ Local memory embedding bootstrap is controlled by
 When local embeddings are enabled, template deploy also builds the sqlite-vec loadable extension from source on FreeBSD (version resolved from the installed npm dependency) and writes
 `agents.defaults.memorySearch.store.vector.extensionPath` into
 `/usr/local/etc/openclaw/openclaw.json`.
+When config does not explicitly request a remote embedding provider, deploy also
+pins memory defaults to local mode for bootstrap reliability:
+
+- `agents.defaults.memorySearch.provider = "local"`
+- `agents.defaults.memorySearch.local.modelPath = hf:ggml-org/embeddinggemma-300m-qat-q8_0-GGUF/embeddinggemma-300m-qat-Q8_0.gguf`
+- `agents.defaults.memorySearch.fallback = "none"` (only if missing)
 
 When enabled, deploy/rebuild path runs one best-effort prewarm probe:
 

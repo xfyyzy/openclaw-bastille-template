@@ -49,6 +49,14 @@ if ! rg -n --fixed-strings 'Prewarming local memory embeddings via openclaw memo
   fail "missing deploy-time memory prewarm log in install script"
 fi
 
+if ! rg -n --fixed-strings 'cfg.agents.defaults.memorySearch.provider = "local";' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then
+  fail "missing memorySearch.provider local pin in install script"
+fi
+
+if ! rg -n --fixed-strings 'cfg.agents.defaults.memorySearch.local.modelPath = "hf:ggml-org/embeddinggemma-300m-qat-q8_0-GGUF/embeddinggemma-300m-qat-Q8_0.gguf";' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then
+  fail "missing default local embedding modelPath pin in install script"
+fi
+
 if ! rg -n --fixed-strings 'maybe_proxy "${openclaw_cmd}" memory status --deep' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then
   fail "missing deploy-time memory prewarm command in install script"
 fi

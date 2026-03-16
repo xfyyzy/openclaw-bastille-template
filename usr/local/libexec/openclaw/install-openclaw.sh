@@ -377,12 +377,34 @@ if [ "${enable_local_embeddings}" = "yes" ]; then
     cfg.agents.defaults.memorySearch.store ??= {};
     cfg.agents.defaults.memorySearch.store.vector ??= {};
     cfg.agents.defaults.memorySearch.store.vector.extensionPath = extensionPath;
+    const requestedProvider = typeof cfg.agents.defaults.memorySearch.provider === "string"
+      ? cfg.agents.defaults.memorySearch.provider.trim()
+      : "";
+    if (!requestedProvider || requestedProvider === "auto" || requestedProvider === "none") {
+      cfg.agents.defaults.memorySearch.provider = "local";
+    }
+    if (cfg.agents.defaults.memorySearch.provider === "local") {
+      cfg.agents.defaults.memorySearch.local ??= {};
+      if (
+        typeof cfg.agents.defaults.memorySearch.local.modelPath !== "string" ||
+        !cfg.agents.defaults.memorySearch.local.modelPath.trim()
+      ) {
+        cfg.agents.defaults.memorySearch.local.modelPath = "hf:ggml-org/embeddinggemma-300m-qat-q8_0-GGUF/embeddinggemma-300m-qat-Q8_0.gguf";
+      }
+      if (
+        typeof cfg.agents.defaults.memorySearch.fallback !== "string" ||
+        !cfg.agents.defaults.memorySearch.fallback.trim()
+      ) {
+        cfg.agents.defaults.memorySearch.fallback = "none";
+      }
+    }
     fs.writeFileSync(p, JSON.stringify(cfg, null, 2) + "\n");
   ' "${config_path}" "${sqlite_vec_extension_path}"; then
     echo "error: failed to persist sqlite-vec extensionPath into config: ${config_path}" >&2
     exit 1
   fi
   echo "Configured sqlite-vec extensionPath for memory search: ${sqlite_vec_extension_path}"
+  echo "Ensured local memory embedding defaults are pinned for FreeBSD bootstrap."
 fi
 
 cat > "${runtime_context_path}" <<EOF_CTX

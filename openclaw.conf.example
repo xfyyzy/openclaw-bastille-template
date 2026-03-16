@@ -123,6 +123,8 @@
 # yes (default): install/rebuild node-llama-cpp in OpenClaw runtime prefix.
 #                on FreeBSD, also build sqlite-vec loadable extension from source
 #                and pin memorySearch.store.vector.extensionPath in config.
+#                if memorySearch provider is unset/auto/none, deploy also pins
+#                provider=local with a default local GGUF model URI.
 # no: skip local embedding bootstrap (use remote memory providers or custom hooks).
 #: "${OPENCLAW_ENABLE_LOCAL_EMBEDDINGS:=yes}"
 
