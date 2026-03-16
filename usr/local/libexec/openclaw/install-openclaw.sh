@@ -18,6 +18,7 @@ use_proxy='${USE_PROXY}'
 python_bin='${PYTHON_BIN}'
 enable_local_embeddings='${OPENCLAW_ENABLE_LOCAL_EMBEDDINGS}'
 proxy_enabled='no'
+sqlite_vec_extension_path=''
 
 if [ "${use_proxy}" = "yes" ]; then
   proxy_enabled='yes'
@@ -111,6 +112,38 @@ if [ -z "${python_cmd}" ]; then
   exit 1
 fi
 
+curl_cmd=''
+for candidate in /usr/local/bin/curl /usr/bin/curl curl; do
+  if command -v "${candidate}" >/dev/null 2>&1; then
+    curl_cmd=$(command -v "${candidate}")
+    break
+  elif [ -x "${candidate}" ]; then
+    curl_cmd="${candidate}"
+    break
+  fi
+done
+
+if [ -z "${curl_cmd}" ]; then
+  echo "curl command not found inside jail (required for sqlite-vec source bootstrap)" >&2
+  exit 1
+fi
+
+cc_cmd=''
+for candidate in /usr/bin/cc /usr/bin/clang cc clang /usr/local/bin/gcc gcc; do
+  if command -v "${candidate}" >/dev/null 2>&1; then
+    cc_cmd=$(command -v "${candidate}")
+    break
+  elif [ -x "${candidate}" ]; then
+    cc_cmd="${candidate}"
+    break
+  fi
+done
+
+if [ -z "${cc_cmd}" ]; then
+  echo "C compiler command not found inside jail (required for sqlite-vec source bootstrap)" >&2
+  exit 1
+fi
+
 # Keep a stable python3 entrypoint for automation tools.
 if [ ! -x /usr/local/bin/python3 ] && [ -x "/usr/local/bin/${python_bin}" ]; then
   ln -sf "/usr/local/bin/${python_bin}" /usr/local/bin/python3
@@ -156,6 +189,104 @@ if [ "${enable_local_embeddings}" = "yes" ]; then
   rebuild_pkgs="${rebuild_pkgs} node-llama-cpp"
 else
   echo "skipping optional local embedding dependency bootstrap (OPENCLAW_ENABLE_LOCAL_EMBEDDINGS=${enable_local_embeddings})"
+fi
+
+if [ "${enable_local_embeddings}" = "yes" ]; then
+  sqlite_vec_pkg_json="${install_root}/node_modules/sqlite-vec/package.json"
+  if [ ! -f "${sqlite_vec_pkg_json}" ]; then
+    echo "error: sqlite-vec dependency metadata missing: ${sqlite_vec_pkg_json}" >&2
+    echo "error: sqlite-vec source build failed; aborting deploy." >&2
+    exit 1
+  fi
+
+  sqlite_vec_version="$("${node_cmd}" -e '
+    const pkg = require(process.argv[1]);
+    process.stdout.write(String(pkg?.version ?? ""));
+  ' "${sqlite_vec_pkg_json}")"
+  if [ -z "${sqlite_vec_version}" ]; then
+    echo "error: unable to resolve sqlite-vec dependency version from ${sqlite_vec_pkg_json}" >&2
+    echo "error: sqlite-vec source build failed; aborting deploy." >&2
+    exit 1
+  fi
+
+  sqlite_vec_version_major=$(printf '%s' "${sqlite_vec_version}" | cut -d. -f1)
+  sqlite_vec_version_minor=$(printf '%s' "${sqlite_vec_version}" | cut -d. -f2)
+  sqlite_vec_version_patch=$(printf '%s' "${sqlite_vec_version}" | cut -d. -f3 | cut -d- -f1)
+  case "${sqlite_vec_version_major}${sqlite_vec_version_minor}${sqlite_vec_version_patch}" in
+    ''|*[!0-9]*)
+      echo "error: sqlite-vec version is not semver-like: ${sqlite_vec_version}" >&2
+      echo "error: sqlite-vec source build failed; aborting deploy." >&2
+      exit 1
+      ;;
+  esac
+
+  sqlite_vec_extension_dir="${state_dir}/native/sqlite-vec/${sqlite_vec_version}"
+  sqlite_vec_extension_path="${sqlite_vec_extension_dir}/vec0.so"
+  sqlite_vec_tarball_url="https://github.com/asg017/sqlite-vec/archive/refs/tags/v${sqlite_vec_version}.tar.gz"
+  sqlite_vec_build_tmp="${state_dir}/build/sqlite-vec/tmp"
+
+  if [ ! -s "${sqlite_vec_extension_path}" ]; then
+    mkdir -p "${sqlite_vec_extension_dir}" "${sqlite_vec_build_tmp}"
+    sqlite_vec_stage=$(mktemp -d "${sqlite_vec_build_tmp}/build.XXXXXX")
+    sqlite_vec_tarball="${sqlite_vec_stage}/sqlite-vec.tar.gz"
+    sqlite_vec_src_root="${sqlite_vec_stage}/src"
+    sqlite_vec_src_dir="${sqlite_vec_src_root}/sqlite-vec-${sqlite_vec_version}"
+    sqlite_vec_generated_header="${sqlite_vec_src_dir}/sqlite-vec.h"
+    sqlite_vec_generated_header_tmp="${sqlite_vec_generated_header}.tmp"
+    sqlite_vec_compiled_tmp="${sqlite_vec_extension_path}.tmp"
+    sqlite_vec_date="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
+    echo "Building sqlite-vec loadable extension from source (version ${sqlite_vec_version})..."
+    if ! maybe_proxy "${curl_cmd}" -fsSL "${sqlite_vec_tarball_url}" -o "${sqlite_vec_tarball}"; then
+      echo "error: failed to download sqlite-vec source tarball: ${sqlite_vec_tarball_url}" >&2
+      echo "error: sqlite-vec source build failed; aborting deploy." >&2
+      exit 1
+    fi
+
+    mkdir -p "${sqlite_vec_src_root}"
+    if ! tar -xzf "${sqlite_vec_tarball}" -C "${sqlite_vec_src_root}"; then
+      echo "error: failed to extract sqlite-vec source tarball: ${sqlite_vec_tarball}" >&2
+      echo "error: sqlite-vec source build failed; aborting deploy." >&2
+      exit 1
+    fi
+    if [ ! -d "${sqlite_vec_src_dir}" ]; then
+      echo "error: sqlite-vec source directory missing after extract: ${sqlite_vec_src_dir}" >&2
+      echo "error: sqlite-vec source build failed; aborting deploy." >&2
+      exit 1
+    fi
+
+    if ! sed \
+      -e "s|\${VERSION}|${sqlite_vec_version}|g" \
+      -e "s|\${DATE}|${sqlite_vec_date}|g" \
+      -e "s|\${SOURCE}|openclaw-bastille-template|g" \
+      -e "s|\${VERSION_MAJOR}|${sqlite_vec_version_major}|g" \
+      -e "s|\${VERSION_MINOR}|${sqlite_vec_version_minor}|g" \
+      -e "s|\${VERSION_PATCH}|${sqlite_vec_version_patch}|g" \
+      "${sqlite_vec_src_dir}/sqlite-vec.h.tmpl" > "${sqlite_vec_generated_header_tmp}"; then
+      echo "error: failed to render sqlite-vec.h from template" >&2
+      echo "error: sqlite-vec source build failed; aborting deploy." >&2
+      exit 1
+    fi
+    mv "${sqlite_vec_generated_header_tmp}" "${sqlite_vec_generated_header}"
+
+    if ! "${cc_cmd}" -fPIC -shared -Wall -Wextra -O3 \
+      -I/usr/local/include \
+      -I"${sqlite_vec_src_dir}" \
+      -I"${sqlite_vec_src_dir}/vendor" \
+      "${sqlite_vec_src_dir}/sqlite-vec.c" \
+      -lm \
+      -o "${sqlite_vec_compiled_tmp}"; then
+      echo "error: failed to compile sqlite-vec loadable extension with ${cc_cmd}" >&2
+      echo "error: sqlite-vec source build failed; aborting deploy." >&2
+      exit 1
+    fi
+
+    mv "${sqlite_vec_compiled_tmp}" "${sqlite_vec_extension_path}"
+    chmod 0644 "${sqlite_vec_extension_path}"
+    rm -rf "${sqlite_vec_stage}"
+  else
+    echo "Reusing cached sqlite-vec loadable extension: ${sqlite_vec_extension_path}"
+  fi
 fi
 
 # shellcheck disable=SC2086
@@ -221,6 +352,36 @@ if [ ! -s "${config_path}" ]; then
   }
 }
 JSON
+fi
+
+if [ "${enable_local_embeddings}" = "yes" ]; then
+  if [ -z "${sqlite_vec_extension_path}" ] || [ ! -s "${sqlite_vec_extension_path}" ]; then
+    echo "error: sqlite-vec extension path unresolved for local embeddings bootstrap" >&2
+    exit 1
+  fi
+  if ! "${node_cmd}" -e '
+    const fs = require("fs");
+    const p = process.argv[1];
+    const extensionPath = process.argv[2];
+    let cfg;
+    try {
+      cfg = JSON.parse(fs.readFileSync(p, "utf8"));
+    } catch (err) {
+      console.error("invalid openclaw config JSON:", p);
+      process.exit(1);
+    }
+    cfg.agents ??= {};
+    cfg.agents.defaults ??= {};
+    cfg.agents.defaults.memorySearch ??= {};
+    cfg.agents.defaults.memorySearch.store ??= {};
+    cfg.agents.defaults.memorySearch.store.vector ??= {};
+    cfg.agents.defaults.memorySearch.store.vector.extensionPath = extensionPath;
+    fs.writeFileSync(p, JSON.stringify(cfg, null, 2) + "\n");
+  ' "${config_path}" "${sqlite_vec_extension_path}"; then
+    echo "error: failed to persist sqlite-vec extensionPath into config: ${config_path}" >&2
+    exit 1
+  fi
+  echo "Configured sqlite-vec extensionPath for memory search: ${sqlite_vec_extension_path}"
 fi
 
 cat > "${runtime_context_path}" <<EOF_CTX

@@ -154,11 +154,16 @@ Local memory embedding bootstrap is controlled by
   selective `npm rebuild`.
 - `no`: skips `node-llama-cpp` install/rebuild and local embedding prewarm.
 
+When local embeddings are enabled, template deploy also builds the sqlite-vec loadable extension from source on FreeBSD (version resolved from the installed npm dependency) and writes
+`agents.defaults.memorySearch.store.vector.extensionPath` into
+`/usr/local/etc/openclaw/openclaw.json`.
+
 When enabled, deploy/rebuild path runs one best-effort prewarm probe:
 
 - `openclaw memory status --deep`
 
-Prewarm failures are treated as deploy errors and abort template apply.
+sqlite-vec source download/build/config-write failures and memory prewarm
+failures are treated as deploy errors and abort template apply.
 
 Template runtime pins `node-gyp` and `node-addon-api` as direct dependencies so `sharp` source-build can resolve them during install.
 Installer exports `PYTHON`/`npm_config_python` to the detected Python executable so node-gyp does not depend on `python3`/`python` alias names.

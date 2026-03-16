@@ -121,6 +121,8 @@
 
 # Enable local memory embedding bootstrap during deploy.
 # yes (default): install/rebuild node-llama-cpp in OpenClaw runtime prefix.
+#                on FreeBSD, also build sqlite-vec loadable extension from source
+#                and pin memorySearch.store.vector.extensionPath in config.
 # no: skip local embedding bootstrap (use remote memory providers or custom hooks).
 #: "${OPENCLAW_ENABLE_LOCAL_EMBEDDINGS:=yes}"
 
