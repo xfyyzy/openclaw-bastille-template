@@ -921,6 +921,34 @@ ensure_searxng_started_after_deploy() {
   return 0
 }
 
+ensure_gateway_started_after_deploy_if_initialized() {
+  gateway_init_marker="$(bastille cmd "${JAIL_NAME}" service openclaw_gateway check 2>/dev/null \
+    | awk -F= '/openclaw_gateway_init_marker=/{print $2; exit}')"
+  if [ -z "${gateway_init_marker}" ]; then
+    gateway_init_marker='/var/db/openclaw/state/.onboarded'
+  fi
+
+  if ! bastille cmd "${JAIL_NAME}" test -f "${gateway_init_marker}" >/dev/null 2>&1; then
+    echo "info: openclaw_gateway init marker not found (${gateway_init_marker}); skipping deploy-time gateway auto-start."
+    echo "  bastille cmd ${JAIL_NAME} service openclaw_gateway init"
+    return 0
+  fi
+
+  if bastille cmd "${JAIL_NAME}" service openclaw_gateway status >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if bastille cmd "${JAIL_NAME}" service openclaw_gateway start >/dev/null 2>&1 \
+    && bastille cmd "${JAIL_NAME}" service openclaw_gateway status >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "warning: openclaw_gateway init marker exists but service is not running after deploy; continue with manual recovery:" >&2
+  echo "  bastille cmd ${JAIL_NAME} service openclaw_gateway status" >&2
+  echo "  bastille cmd ${JAIL_NAME} service openclaw_gateway start" >&2
+  return 0
+}
+
 ensure_local_boot_hook_started_after_deploy() {
   if bastille cmd "${JAIL_NAME}" service openclaw_local_boot start >/dev/null 2>&1; then
     return 0
@@ -946,6 +974,7 @@ if ! ensure_local_boot_hook_started_after_deploy; then
 fi
 
 ensure_searxng_started_after_deploy
+ensure_gateway_started_after_deploy_if_initialized
 
 # --- Deployment summary ---
 

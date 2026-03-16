@@ -311,6 +311,7 @@ Gateway start is guarded by init marker by default (`openclaw_gateway_autostart_
 
 - if `${openclaw_gateway_init_marker}` exists (default `/var/db/openclaw/state/.onboarded`), service starts automatically on jail boot;
 - if marker is missing, start is skipped with guidance to run `service openclaw_gateway init`.
+- `openclaw-jailctl.sh --deploy` also attempts a non-blocking post-deploy `service openclaw_gateway start` only when init marker exists, then verifies `status`.
 
 Gateway stop uses a bounded shutdown path: send `TERM`, wait up to `openclaw_gateway_stop_timeout`,
 then escalate to `KILL` for supervisor and descendant processes. This prevents indefinite jail stop hangs.
