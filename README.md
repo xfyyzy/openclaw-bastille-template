@@ -166,7 +166,7 @@ pins memory defaults to local mode for bootstrap reliability:
 
 When enabled, deploy/rebuild path runs one strict prewarm probe:
 
-- `openclaw memory status --deep --json`
+- `openclaw memory status --deep --index --json`
 
 Prewarm now enforces semantic readiness for each agent result:
 

@@ -45,7 +45,7 @@ if ! rg -n --fixed-strings 'rebuild_pkgs="${rebuild_pkgs} node-llama-cpp"' "${IN
   fail "missing node-llama-cpp rebuild policy in install script"
 fi
 
-if ! rg -n --fixed-strings 'Prewarming local memory embeddings via openclaw memory status --deep...' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then
+if ! rg -n --fixed-strings 'Prewarming local memory embeddings via openclaw memory status --deep --index...' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then
   fail "missing deploy-time memory prewarm log in install script"
 fi
 
@@ -57,8 +57,8 @@ if ! rg -n --fixed-strings 'cfg.agents.defaults.memorySearch.local.modelPath = "
   fail "missing default local embedding modelPath pin in install script"
 fi
 
-if ! rg -n --fixed-strings 'maybe_proxy "${openclaw_cmd}" memory status --deep --json > "${memory_prewarm_status_json}"' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then
-  fail "missing deploy-time memory prewarm --json command in install script"
+if ! rg -n --fixed-strings 'maybe_proxy "${openclaw_cmd}" memory status --deep --index --json > "${memory_prewarm_status_json}"' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then
+  fail "missing deploy-time memory prewarm --index --json command in install script"
 fi
 
 if ! rg -n --fixed-strings 'strict local memory prewarm validation failed; aborting deploy.' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then

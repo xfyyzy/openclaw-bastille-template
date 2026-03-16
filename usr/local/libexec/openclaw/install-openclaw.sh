@@ -441,9 +441,9 @@ OPENCLAW_STATE_DIR="${state_dir}" "${prepare_stateful_home}" "${db_dir}" opencla
 
 if [ "${enable_local_embeddings}" = "yes" ]; then
   if [ -n "${openclaw_cmd}" ]; then
-    echo "Prewarming local memory embeddings via openclaw memory status --deep..."
+    echo "Prewarming local memory embeddings via openclaw memory status --deep --index..."
     memory_prewarm_status_json=$(mktemp -t openclaw-memory-prewarm.XXXXXX)
-    if ! maybe_proxy "${openclaw_cmd}" memory status --deep --json > "${memory_prewarm_status_json}"; then
+    if ! maybe_proxy "${openclaw_cmd}" memory status --deep --index --json > "${memory_prewarm_status_json}"; then
       rm -f "${memory_prewarm_status_json}"
       echo "error: memory prewarm failed; aborting deploy." >&2
       exit 1
