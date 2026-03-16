@@ -164,12 +164,19 @@ pins memory defaults to local mode for bootstrap reliability:
 - `agents.defaults.memorySearch.local.modelPath = hf:ggml-org/embeddinggemma-300m-qat-q8_0-GGUF/embeddinggemma-300m-qat-Q8_0.gguf`
 - `agents.defaults.memorySearch.fallback = "none"` (only if missing)
 
-When enabled, deploy/rebuild path runs one best-effort prewarm probe:
+When enabled, deploy/rebuild path runs one strict prewarm probe:
 
-- `openclaw memory status --deep`
+- `openclaw memory status --deep --json`
 
-sqlite-vec source download/build/config-write failures and memory prewarm
-failures are treated as deploy errors and abort template apply.
+Prewarm now enforces semantic readiness for each agent result:
+
+- `status.provider` must resolve to `local`
+- `embeddingProbe.ok` must be `true`
+- `status.vector.enabled` and `status.vector.available` must both be true
+
+sqlite-vec source download/build/config-write failures, prewarm command
+failures, and semantic prewarm validation failures are treated as deploy errors
+and abort template apply.
 
 Template runtime pins `node-gyp` and `node-addon-api` as direct dependencies so `sharp` source-build can resolve them during install.
 Installer exports `PYTHON`/`npm_config_python` to the detected Python executable so node-gyp does not depend on `python3`/`python` alias names.

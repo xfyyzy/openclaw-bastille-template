@@ -442,10 +442,63 @@ OPENCLAW_STATE_DIR="${state_dir}" "${prepare_stateful_home}" "${db_dir}" opencla
 if [ "${enable_local_embeddings}" = "yes" ]; then
   if [ -n "${openclaw_cmd}" ]; then
     echo "Prewarming local memory embeddings via openclaw memory status --deep..."
-    if ! maybe_proxy "${openclaw_cmd}" memory status --deep; then
+    memory_prewarm_status_json=$(mktemp -t openclaw-memory-prewarm.XXXXXX)
+    if ! maybe_proxy "${openclaw_cmd}" memory status --deep --json > "${memory_prewarm_status_json}"; then
+      rm -f "${memory_prewarm_status_json}"
       echo "error: memory prewarm failed; aborting deploy." >&2
       exit 1
     fi
+    if ! "${node_cmd}" -e '
+      const fs = require("fs");
+      const p = process.argv[1];
+      let status;
+      try {
+        status = JSON.parse(fs.readFileSync(p, "utf8"));
+      } catch (err) {
+        console.error("prewarm check: unable to parse memory status JSON:", String(err));
+        process.exit(1);
+      }
+      if (!Array.isArray(status) || status.length === 0) {
+        console.error("prewarm check: memory status JSON did not include agent results.");
+        process.exit(1);
+      }
+      const failures = [];
+      for (const entry of status) {
+        const agentId = typeof entry?.agentId === "string" && entry.agentId.trim() ? entry.agentId.trim() : "default";
+        const provider = typeof entry?.status?.provider === "string" ? entry.status.provider.trim() : "";
+        const requestedProvider = typeof entry?.status?.requestedProvider === "string" ? entry.status.requestedProvider.trim() : "";
+        if (provider !== "local") {
+          failures.push(`[${agentId}] provider is "${provider || "unknown"}" (requested: "${requestedProvider || "unknown"}"), expected "local".`);
+        }
+        if (entry?.embeddingProbe?.ok !== true) {
+          const reason = typeof entry?.embeddingProbe?.error === "string" && entry.embeddingProbe.error.trim()
+            ? entry.embeddingProbe.error.trim()
+            : "unknown embedding probe failure";
+          failures.push(`[${agentId}] embeddings unavailable: ${reason}`);
+        }
+        const vector = entry?.status?.vector;
+        if (!vector || vector.enabled === false) {
+          failures.push(`[${agentId}] sqlite-vec vector index is disabled.`);
+        } else if (vector.available !== true) {
+          const reason = typeof vector?.loadError === "string" && vector.loadError.trim()
+            ? vector.loadError.trim()
+            : "vector status is not ready";
+          failures.push(`[${agentId}] sqlite-vec vector index unavailable: ${reason}`);
+        }
+      }
+      if (failures.length > 0) {
+        console.error("prewarm check: local memory embeddings semantic validation failed:");
+        for (const line of failures) {
+          console.error(`- ${line}`);
+        }
+        process.exit(1);
+      }
+    ' "${memory_prewarm_status_json}"; then
+      rm -f "${memory_prewarm_status_json}"
+      echo "error: strict local memory prewarm validation failed; aborting deploy." >&2
+      exit 1
+    fi
+    rm -f "${memory_prewarm_status_json}"
   else
     echo "error: openclaw command not found; cannot prewarm memory embeddings." >&2
     exit 1

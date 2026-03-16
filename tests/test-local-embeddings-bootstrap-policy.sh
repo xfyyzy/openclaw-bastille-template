@@ -57,8 +57,12 @@ if ! rg -n --fixed-strings 'cfg.agents.defaults.memorySearch.local.modelPath = "
   fail "missing default local embedding modelPath pin in install script"
 fi
 
-if ! rg -n --fixed-strings 'maybe_proxy "${openclaw_cmd}" memory status --deep' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then
-  fail "missing deploy-time memory prewarm command in install script"
+if ! rg -n --fixed-strings 'maybe_proxy "${openclaw_cmd}" memory status --deep --json > "${memory_prewarm_status_json}"' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then
+  fail "missing deploy-time memory prewarm --json command in install script"
+fi
+
+if ! rg -n --fixed-strings 'strict local memory prewarm validation failed; aborting deploy.' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then
+  fail "missing strict local prewarm semantic validation failure path"
 fi
 
 if ! rg -n --fixed-strings 'error: memory prewarm failed; aborting deploy.' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then
