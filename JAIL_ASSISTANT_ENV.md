@@ -151,7 +151,7 @@
   - 普通 `exec shell` 不保证该 PATH 顺序；若需该顺序，请走 `openclaw` wrapper 或 `openclaw_gateway` 进程上下文。
 - 模板为“不遵循 XDG 的 HOME 路径”提供统一 legacy HOME 基线（非工具特例）：
   - helper: `/usr/local/libexec/openclaw/prepare-stateful-home.sh`
-  - 按 `/usr/local/etc/openclaw/legacy-home-paths.conf` 声明式清单，把非 XDG 路径（如 `.ssh`、`.gnupg`、`.gitconfig`）链接到 `/var/db/openclaw/state/home/{profile}`。
+  - 按 `/usr/local/etc/openclaw/legacy-home-paths.conf` 声明式清单，把非 XDG 路径（如 `.ssh`、`.gnupg`、`.openclaw`、`.gitconfig`）链接到 `/var/db/openclaw/state/home/{profile}`。
   - 默认会对 root 与 openclaw 两个 profile 应用；因此 `gh auth login` 生成的 `~/.ssh/id_ed25519` 会持久化。
 
 ## 5. Python 与 uv 约定

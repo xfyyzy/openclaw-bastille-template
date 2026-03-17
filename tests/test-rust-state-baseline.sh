@@ -69,4 +69,13 @@ if rg -n --fixed-strings '.rustup' "${LEGACY_HELPER}" >/dev/null 2>&1; then
   fail "legacy helper fallback should not include .rustup"
 fi
 
+# OpenClaw legacy HOME directory should be part of the persisted baseline.
+if ! rg -n --fixed-strings '.openclaw' "${LEGACY_DEFAULTS}" >/dev/null 2>&1; then
+  fail "legacy defaults should include .openclaw"
+fi
+
+if ! rg -n --fixed-strings '.openclaw' "${LEGACY_HELPER}" >/dev/null 2>&1; then
+  fail "legacy helper fallback should include .openclaw"
+fi
+
 echo "PASS: rust state baseline wiring detected"
