@@ -35,4 +35,17 @@ if ! rg -n --fixed-strings 'service openclaw_gateway init' "$SCRIPT" >/dev/null 
   fail "missing marker-missing recovery command for gateway init"
 fi
 
-echo "PASS: deploy flow includes gateway auto-start gated by init marker"
+# Deploy summary should branch by whether init marker was found at deploy-time.
+if ! rg -n --fixed-strings 'gateway_initialized_at_deploy=' "$SCRIPT" >/dev/null 2>&1; then
+  fail "missing deploy-time gateway initialization state flag"
+fi
+
+if ! rg -n --fixed-strings 'if [ "${gateway_initialized_at_deploy}" = "YES" ]; then' "$SCRIPT" >/dev/null 2>&1; then
+  fail "missing summary branch for initialized gateway"
+fi
+
+if ! rg -n --fixed-strings 'if ! bastille cmd "${JAIL_NAME}" service openclaw_gateway status; then' "$SCRIPT" >/dev/null 2>&1; then
+  fail "missing summary-time gateway status command when already initialized"
+fi
+
+echo "PASS: deploy flow includes gateway auto-start and summary status check when initialized"

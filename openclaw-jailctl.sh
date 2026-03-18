@@ -921,6 +921,8 @@ ensure_searxng_started_after_deploy() {
   return 0
 }
 
+gateway_initialized_at_deploy='NO'
+
 ensure_gateway_started_after_deploy_if_initialized() {
   gateway_init_marker="$(bastille cmd "${JAIL_NAME}" service openclaw_gateway check 2>/dev/null \
     | awk -F= '/openclaw_gateway_init_marker=/{print $2; exit}')"
@@ -929,10 +931,13 @@ ensure_gateway_started_after_deploy_if_initialized() {
   fi
 
   if ! bastille cmd "${JAIL_NAME}" test -f "${gateway_init_marker}" >/dev/null 2>&1; then
+    gateway_initialized_at_deploy='NO'
     echo "info: openclaw_gateway init marker not found (${gateway_init_marker}); skipping deploy-time gateway auto-start."
     echo "  bastille cmd ${JAIL_NAME} service openclaw_gateway init"
     return 0
   fi
+
+  gateway_initialized_at_deploy='YES'
 
   if bastille cmd "${JAIL_NAME}" service openclaw_gateway status >/dev/null 2>&1; then
     return 0
@@ -980,6 +985,12 @@ ensure_gateway_started_after_deploy_if_initialized
 
 printf '\nJail "%s" deployed successfully.\n\n' "${JAIL_NAME}"
 echo "Next steps:"
-echo "  bastille cmd ${JAIL_NAME} service openclaw_gateway init"
-echo "  bastille cmd ${JAIL_NAME} service openclaw_gateway start"
+if [ "${gateway_initialized_at_deploy}" = "YES" ]; then
+  if ! bastille cmd "${JAIL_NAME}" service openclaw_gateway status; then
+    echo "warning: unable to query openclaw_gateway status in deploy summary." >&2
+  fi
+else
+  echo "  bastille cmd ${JAIL_NAME} service openclaw_gateway init"
+  echo "  bastille cmd ${JAIL_NAME} service openclaw_gateway start"
+fi
 echo ""
