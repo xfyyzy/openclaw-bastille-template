@@ -448,6 +448,13 @@ if [ "${enable_local_embeddings}" = "yes" ]; then
       echo "error: memory prewarm failed; aborting deploy." >&2
       exit 1
     fi
+    # memory status --index may refresh manager state during reindex, so probe
+    # once more without --index before enforcing strict readiness checks.
+    if ! maybe_proxy "${openclaw_cmd}" memory status --deep --json > "${memory_prewarm_status_json}"; then
+      rm -f "${memory_prewarm_status_json}"
+      echo "error: memory prewarm failed; aborting deploy." >&2
+      exit 1
+    fi
     if ! "${node_cmd}" -e '
       const fs = require("fs");
       const p = process.argv[1];

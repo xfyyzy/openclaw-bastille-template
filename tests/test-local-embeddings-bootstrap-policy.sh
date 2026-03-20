@@ -61,6 +61,10 @@ if ! rg -n --fixed-strings 'maybe_proxy "${openclaw_cmd}" memory status --deep -
   fail "missing deploy-time memory prewarm --index --json command in install script"
 fi
 
+if ! rg -n --fixed-strings 'maybe_proxy "${openclaw_cmd}" memory status --deep --json > "${memory_prewarm_status_json}"' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then
+  fail "missing deploy-time memory strict validation --deep --json command in install script"
+fi
+
 if ! rg -n --fixed-strings 'strict local memory prewarm validation failed; aborting deploy.' "${INSTALL_SCRIPT}" >/dev/null 2>&1; then
   fail "missing strict local prewarm semantic validation failure path"
 fi

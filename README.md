@@ -164,9 +164,10 @@ pins memory defaults to local mode for bootstrap reliability:
 - `agents.defaults.memorySearch.local.modelPath = hf:ggml-org/embeddinggemma-300m-qat-q8_0-GGUF/embeddinggemma-300m-qat-Q8_0.gguf`
 - `agents.defaults.memorySearch.fallback = "none"` (only if missing)
 
-When enabled, deploy/rebuild path runs one strict prewarm probe:
+When enabled, deploy/rebuild path runs a strict prewarm sequence:
 
-- `openclaw memory status --deep --index --json`
+- `openclaw memory status --deep --index --json` (run reindex pass when dirty)
+- `openclaw memory status --deep --json` (enforce semantic readiness checks)
 
 Prewarm now enforces semantic readiness for each agent result:
 
