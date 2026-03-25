@@ -328,20 +328,6 @@ if [ -s "${config_path}" ]; then
   ' "${config_path}" || echo "warning: failed to clean stale plugin paths (non-fatal)" >&2
 fi
 
-# Reinstall plugins from persistent manifest (survives jail rebuilds).
-# The manifest is maintained by the openclaw wrapper's plugins install/uninstall hooks.
-plugin_manifest="${state_dir}/plugins.txt"
-if [ -f "${plugin_manifest}" ] && [ -s "${plugin_manifest}" ]; then
-  echo "Reinstalling plugins from manifest: ${plugin_manifest}"
-  while IFS= read -r _plugin_spec || [ -n "${_plugin_spec}" ]; do
-    case "${_plugin_spec}" in '#'*|'') continue ;; esac
-    echo "  installing plugin: ${_plugin_spec}"
-    maybe_proxy "${npm_cmd}" install --prefix "${install_root}" --omit=dev "${_plugin_spec}" || {
-      echo "  warning: failed to install plugin: ${_plugin_spec}" >&2
-    }
-  done < "${plugin_manifest}"
-fi
-
 if [ ! -s "${config_path}" ]; then
   mkdir -p "$(dirname "${config_path}")"
   cat > "${config_path}" <<JSON
@@ -353,6 +339,30 @@ if [ ! -s "${config_path}" ]; then
   }
 }
 JSON
+fi
+
+# Reinstall plugins from persistent manifest (survives jail rebuilds).
+# The manifest is maintained by the openclaw wrapper's plugins install/uninstall hooks.
+# Restore via OpenClaw CLI so plugin source/channel behavior follows upstream defaults.
+plugin_manifest="${state_dir}/plugins.txt"
+if [ -f "${plugin_manifest}" ] && [ -s "${plugin_manifest}" ]; then
+  if [ -z "${openclaw_cmd}" ]; then
+    echo "error: openclaw command not found; cannot restore plugins from manifest" >&2
+    exit 1
+  fi
+  echo "Reinstalling plugins from manifest via openclaw CLI: ${plugin_manifest}"
+  plugin_manifest_snapshot=$(mktemp -t openclaw-plugin-manifest.XXXXXX)
+  cp "${plugin_manifest}" "${plugin_manifest_snapshot}"
+  while IFS= read -r _plugin_spec || [ -n "${_plugin_spec}" ]; do
+    case "${_plugin_spec}" in '#'*|'') continue ;; esac
+    echo "  installing plugin: ${_plugin_spec}"
+    if ! "${openclaw_cmd}" plugins install "${_plugin_spec}"; then
+      rm -f "${plugin_manifest_snapshot}"
+      echo "error: failed to install plugin from manifest via openclaw CLI: ${_plugin_spec}" >&2
+      exit 1
+    fi
+  done < "${plugin_manifest_snapshot}"
+  rm -f "${plugin_manifest_snapshot}"
 fi
 
 if [ "${enable_local_embeddings}" = "yes" ]; then
