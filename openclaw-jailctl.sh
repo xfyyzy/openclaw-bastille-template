@@ -965,12 +965,12 @@ ensure_local_boot_hook_started_after_deploy() {
 }
 
 ensure_local_cron_restored_after_deploy() {
-  if bastille cmd "${JAIL_NAME}" service openclaw_local_cron start >/dev/null 2>&1; then
+  if bastille cmd "${JAIL_NAME}" service openclaw_local_cron apply >/dev/null 2>&1; then
     return 0
   fi
 
   echo "error: openclaw_local_cron failed after deploy; aborting." >&2
-  echo "  bastille cmd ${JAIL_NAME} service openclaw_local_cron start" >&2
+  echo "  bastille cmd ${JAIL_NAME} service openclaw_local_cron apply" >&2
   return 1
 }
 

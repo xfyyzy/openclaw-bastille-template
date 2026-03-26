@@ -56,4 +56,3 @@ CMD /usr/local/libexec/openclaw/install-openclaw.sh
 CMD sysrc openclaw_searxng_enable=YES
 CMD sysrc openclaw_gateway_enable=YES
 CMD sysrc openclaw_local_boot_enable=YES
-CMD sysrc openclaw_local_cron_enable=YES

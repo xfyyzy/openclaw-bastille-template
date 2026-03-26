@@ -18,8 +18,16 @@ load_rc_config "${name}"
 
 start_cmd="${name}_start"
 stop_cmd=":"
+extra_commands="apply"
+apply_cmd="${name}_apply"
 
 openclaw_local_cron_start()
+{
+	echo "${name}: start action is disabled; use 'service ${name} apply'." >&2
+	return 64
+}
+
+openclaw_local_cron_restore()
 {
 	if [ ! -f "${openclaw_local_cron_file}" ]; then
 		echo "${name}: ${openclaw_local_cron_file} missing optional crontab file; skipping."
@@ -35,6 +43,11 @@ openclaw_local_cron_start()
 	fi
 
 	return 0
+}
+
+openclaw_local_cron_apply()
+{
+	openclaw_local_cron_restore
 }
 
 run_rc_command "$1"

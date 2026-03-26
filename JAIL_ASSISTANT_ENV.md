@@ -126,13 +126,17 @@
 - rc 服务名：`openclaw_local_cron`
 - 固定恢复源路径：`/usr/local/etc/openclaw/crontab.local`（持久化，允许不存在）
 - 启动行为：
-  - 文件不存在：打印 skip 信息并返回成功，不阻断 jail 启动。
-  - 文件存在但 `crontab` 导入失败：`openclaw_local_cron` 启动失败（严格）。
+  - `service openclaw_local_cron apply`：将 `/usr/local/etc/openclaw/crontab.local` 导入系统 crontab。
+  - 文件不存在：`apply` 打印 skip 信息并返回成功。
+  - 文件存在但 `crontab` 导入失败：`apply` 返回非 0（严格）。
+  - `service openclaw_local_cron start` 被显式禁用；统一使用 `apply`。
 - `openclaw-jailctl.sh --deploy` 行为：
-  - 模板应用完成后会立即执行一次：`service openclaw_local_cron start`
+  - 模板应用完成后会立即执行一次：`service openclaw_local_cron apply`
   - 若该执行失败，deploy 直接失败并中止（不会继续后续成功流程）
+- 运行期说明：
+  - 仅编辑 `/usr/local/etc/openclaw/crontab.local` 不会自动生效；编辑后需手动执行 `service openclaw_local_cron apply` 才会应用到系统 crontab。
 - 常用命令：
-  - `service openclaw_local_cron start`
+  - `service openclaw_local_cron apply`
   - `crontab -l`
 
 ## 4. 网络访问约束（按运行时标记判定）

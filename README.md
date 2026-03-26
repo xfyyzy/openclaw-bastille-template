@@ -308,29 +308,29 @@ bastille cmd openclaw service openclaw_local_boot start
 
 ## Local cron restore in jail
 
-Template installs `/usr/local/etc/rc.d/openclaw_local_cron` and sets `openclaw_local_cron_enable=YES`.
+Template installs `/usr/local/etc/rc.d/openclaw_local_cron`.
 The service restores root crontab from one fixed persistent file path:
 
 - `/usr/local/etc/openclaw/crontab.local`
 
 Execution contract:
 
-- if the persisted crontab file does not exist, startup prints a skip message and continues;
-- if the file exists and `crontab` import fails, service start fails (strict behavior).
+- `service openclaw_local_cron apply`: imports persisted source file into root crontab.
+- if the persisted crontab file does not exist, `apply` prints a skip message and returns success.
+- if the file exists and `crontab` import fails, `apply` returns non-zero (strict behavior).
+- `service openclaw_local_cron start` is intentionally disabled; use `apply` to avoid dual semantics.
 
 Deploy behavior:
 
-- `openclaw-jailctl.sh --deploy` runs `service openclaw_local_cron start` immediately after template apply.
+- `openclaw-jailctl.sh --deploy` runs `service openclaw_local_cron apply` immediately after template apply.
 - if that restore fails, deploy aborts and cleans up the incomplete jail.
+- editing `/usr/local/etc/openclaw/crontab.local` during runtime does **not** auto-apply changes; run `service openclaw_local_cron apply` after edits to make them effective.
 
 Operational commands:
 
 ```sh
-# save current root crontab to persistent source file (optional bootstrap)
-bastille cmd openclaw sh -lc 'crontab -l > /usr/local/etc/openclaw/crontab.local'
-
-# trigger restore from persistent source file
-bastille cmd openclaw service openclaw_local_cron start
+# apply edited persistent source file
+bastille cmd openclaw service openclaw_local_cron apply
 
 # inspect effective root crontab in current jail
 bastille cmd openclaw crontab -l
