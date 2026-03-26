@@ -1,0 +1,40 @@
+#!/bin/sh
+#
+# PROVIDE: openclaw_local_cron
+# REQUIRE: LOGIN
+# BEFORE: openclaw_gateway
+# KEYWORD: shutdown
+#
+
+. /etc/rc.subr
+
+name="openclaw_local_cron"
+rcvar="${name}_enable"
+
+load_rc_config "${name}"
+
+: "${openclaw_local_cron_enable:=NO}"
+: "${openclaw_local_cron_file:=/usr/local/etc/openclaw/crontab.local}"
+
+start_cmd="${name}_start"
+stop_cmd=":"
+
+openclaw_local_cron_start()
+{
+	if [ ! -f "${openclaw_local_cron_file}" ]; then
+		echo "${name}: ${openclaw_local_cron_file} missing optional crontab file; skipping."
+		return 0
+	fi
+
+	echo "${name}: restoring root crontab from ${openclaw_local_cron_file}"
+	/usr/bin/crontab "${openclaw_local_cron_file}"
+	rc=$?
+	if [ "${rc}" -ne 0 ]; then
+		echo "${name}: failed to restore crontab from ${openclaw_local_cron_file} (exit ${rc})" >&2
+		return "${rc}"
+	fi
+
+	return 0
+}
+
+run_rc_command "$1"

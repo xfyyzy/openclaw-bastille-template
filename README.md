@@ -306,6 +306,36 @@ Common commands:
 bastille cmd openclaw service openclaw_local_boot start
 ```
 
+## Local cron restore in jail
+
+Template installs `/usr/local/etc/rc.d/openclaw_local_cron` and sets `openclaw_local_cron_enable=YES`.
+The service restores root crontab from one fixed persistent file path:
+
+- `/usr/local/etc/openclaw/crontab.local`
+
+Execution contract:
+
+- if the persisted crontab file does not exist, startup prints a skip message and continues;
+- if the file exists and `crontab` import fails, service start fails (strict behavior).
+
+Deploy behavior:
+
+- `openclaw-jailctl.sh --deploy` runs `service openclaw_local_cron start` immediately after template apply.
+- if that restore fails, deploy aborts and cleans up the incomplete jail.
+
+Operational commands:
+
+```sh
+# save current root crontab to persistent source file (optional bootstrap)
+bastille cmd openclaw sh -lc 'crontab -l > /usr/local/etc/openclaw/crontab.local'
+
+# trigger restore from persistent source file
+bastille cmd openclaw service openclaw_local_cron start
+
+# inspect effective root crontab in current jail
+bastille cmd openclaw crontab -l
+```
+
 ## Gateway rc script in jail
 
 Template installs `/usr/local/etc/rc.d/openclaw_gateway` and sets `openclaw_gateway_enable=YES`.

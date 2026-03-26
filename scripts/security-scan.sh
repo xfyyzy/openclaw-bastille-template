@@ -46,6 +46,8 @@ shellcheck_targets=(
   "usr/local/bin/searxng_search"
   "usr/local/etc/rc.d/openclaw_gateway"
   "usr/local/etc/rc.d/openclaw_searxng"
+  "usr/local/etc/rc.d/openclaw_local_boot"
+  "usr/local/etc/rc.d/openclaw_local_cron"
   "usr/local/libexec/openclaw/bootstrap-pkg.sh"
   "usr/local/libexec/openclaw/install-openclaw.sh"
   "usr/local/libexec/openclaw/searxng-run.sh"
